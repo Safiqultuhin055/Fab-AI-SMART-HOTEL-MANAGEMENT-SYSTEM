@@ -174,7 +174,7 @@ class TestTheClientAsksForTheRightLanguage:
         source = (Path(__file__).parents[2] / "static" / "js" / "kiosk.js").read_text(
             encoding="utf-8"
         )
-        block = source[source.index("await post(API.speak") :][:400]
+        block = source[source.index("post(API.speak") :][:400]
         assert "language: speechLang" in block
 
 

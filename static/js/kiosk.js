@@ -596,12 +596,52 @@
     }
     // Anything mid-sequence stops queueing the rest of itself. See speakInBrowser.
     speechGeneration += 1;
+    // Whatever was being said is not being said any more, so the microphone is free to
+    // reopen without waiting for speak()'s finally to run. Cancelling IS the end of the
+    // answer, and the guest who caused it is usually waiting to talk.
+    assistantSpeaking = false;
     if (finishSpeaking) finishSpeaking(false);
   };
 
   //: Bumped by every stopSpeaking(). A chunked utterance checks it between chunks, so
   //: an interruption cannot be outlived by the sentences that had not started yet.
   let speechGeneration = 0;
+
+  //: How long to wait for play() to acknowledge before carrying on without it.
+  const PLAY_START_MS = 4000;
+
+  //: How long to wait for the server's voice before using the browser's own. The
+  //: provider calls a service on the internet; a request with no ceiling holds the
+  //: microphone shut for as long as it hangs.
+  const SPEAK_FETCH_MS = 8000;
+
+  //: A ceiling on how long "the assistant is speaking" may be believed, for the same
+  //: reason every other wait here has one: a flag that can only be cleared by a
+  //: promise settling is a flag that a hung promise pins forever — and this one holds
+  //: the microphone shut. Long enough for any real answer to finish being read out.
+  const SPEAKING_MAX_MS = 90000;
+
+  //: True from before the first syllable of an answer until after the last.
+  //:
+  //: The one authority on "is the assistant talking", and the reason it exists is that
+  //: the honest-looking alternative is wrong: `speechSynthesis.speaking` and
+  //: `player.paused` describe an instant, and an answer is not continuous — there is a
+  //: gap while the audio is fetched, and one between every pair of sentences. Anything
+  //: that samples the engine will eventually sample a gap and open the microphone into
+  //: the middle of the answer.
+  let assistantSpeaking = false;
+  let speakingSince = 0;
+
+  /** Is the assistant talking right now? The only question the mic paths may ask. */
+  const isSpeaking = () => {
+    if (!assistantSpeaking) return false;
+    if (performance.now() - speakingSince < SPEAKING_MAX_MS) return true;
+    // Past the ceiling. Something never settled — a play() that neither started nor
+    // failed, an engine that stopped reporting. Believing it forever would leave a
+    // guest talking to a microphone that was switched off minutes ago.
+    assistantSpeaking = false;
+    return false;
+  };
 
   //: Longest utterance handed to the engine in one piece.
   //:
@@ -828,63 +868,106 @@
     // watchdog behind it).
     if (listening || recognition) pauseForAnswer();
 
+    // And it STAYS closed until the last syllable, on a flag this code owns.
+    //
+    // Everything that could reopen it used to work that out by sampling the engine —
+    // `speechSynthesis.speaking`, `player.paused`. Sampling is a guess about an
+    // instant, and an answer has gaps in it: between the request and playback
+    // starting, and between one sentence and the next now that answers are spoken a
+    // sentence at a time. In those gaps the engine says "not speaking", and the
+    // three-second watchdog opened the microphone straight into the middle of the
+    // answer — where it heard the next sentence and transcribed it as the guest.
+    //
+    // A flag set before the first word and cleared after the last has no gaps.
+    assistantSpeaking = true;
+    speakingSince = performance.now();
+    try {
+      return await deliverSpeech(text);
+    } finally {
+      assistantSpeaking = false;
+    }
+  };
+
+  /** Actually get the words out, by whichever engine this terminal has. */
+  const deliverSpeech = async (text) => {
     if (serverTts) {
       try {
-        const blob = await post(API.speak, {
-          text,
-          voice: voiceName,
-          gender: voiceGender,
-          // The language of THIS answer, not the property's — the server picks the
-          // voice from it, and the two diverge the moment a guest switches.
-          language: speechLang,
-        });
-        if (!(blob instanceof Blob)) return true;
-        stopSpeaking();
-        // Held locally as well as on `player`, because stopSpeaking() now nulls the
-        // shared one — and everything below has to keep talking about the element it
-        // created, not about whichever element happens to be current three awaits
-        // later. Without it, a guest interrupting between play() and 'ended' turns
-        // into a TypeError on the next line.
-        const audio = new Audio(URL.createObjectURL(blob));
-        player = audio;
-        setState('speaking');
+        // Bounded. The provider reaches a service on the internet, and a request with
+        // no ceiling is a request that can hang for a minute — during which the
+        // microphone is held shut, because "the assistant is speaking" covers fetching
+        // the audio as well as playing it. A voice that arrives a minute late is not a
+        // voice; fall through to the browser's own and keep the conversation moving.
+        const blob = await Promise.race([
+          post(API.speak, {
+            text,
+            voice: voiceName,
+            gender: voiceGender,
+            // The language of THIS answer, not the property's — the server picks the
+            // voice from it, and the two diverge the moment a guest switches.
+            language: speechLang,
+          }),
+          wait(SPEAK_FETCH_MS).then(() => null),
+        ]);
+        if (blob instanceof Blob) {
+          stopSpeaking();
+          // Held locally as well as on `player`, because stopSpeaking() now nulls the
+          // shared one — and everything below has to keep talking about the element it
+          // created, not about whichever element happens to be current three awaits
+          // later. Without it, a guest interrupting between play() and 'ended' turns
+          // into a TypeError on the next line.
+          const audio = new Audio(URL.createObjectURL(blob));
+          player = audio;
+          setState('speaking');
 
         // play() resolves when playback STARTS, not when it finishes. Returning
         // there made every caller think the answer had been read out while it was
         // still on its first syllable — which is why the bilingual opening spoke
         // its two halves over the top of each other.
         //
-        // This resolves on 'ended' instead, so "spoken" means spoken.
-        const finished = new Promise((resolve) => {
-          const settle = (ok) => {
-            if (finishSpeaking !== settle) return;  // superseded by a newer utterance
-            finishSpeaking = null;
-            window.clearTimeout(playbackWatchdog);
-            setState(aiEnabled ? 'idle' : 'offline');
-            resolve(ok);
-          };
-          finishSpeaking = settle;
+          // This resolves on 'ended' instead, so "spoken" means spoken.
+          const finished = new Promise((resolve) => {
+            const settle = (ok) => {
+              if (finishSpeaking !== settle) return;  // superseded by a newer utterance
+              finishSpeaking = null;
+              window.clearTimeout(playbackWatchdog);
+              setState(aiEnabled ? 'idle' : 'offline');
+              resolve(ok);
+            };
+            finishSpeaking = settle;
 
-          audio.onended = () => settle(true);
-          audio.onerror = () => settle(false);
+            audio.onended = () => settle(true);
+            audio.onerror = () => settle(false);
 
-          // Belt and braces: a stalled element that never fires 'ended' must not
-          // leave a caller waiting for it. Sized from the real duration once the
-          // browser knows it.
-          const cap = () => {
-            window.clearTimeout(playbackWatchdog);
-            const ms = Number.isFinite(audio.duration) ? audio.duration * 1000 + 2000 : 30000;
-            playbackWatchdog = window.setTimeout(() => settle(true), ms);
-          };
-          audio.onloadedmetadata = cap;
-          cap();
-        });
+            // Belt and braces: a stalled element that never fires 'ended' must not
+            // leave a caller waiting for it. Sized from the real duration once the
+            // browser knows it.
+            const cap = () => {
+              window.clearTimeout(playbackWatchdog);
+              const ms = Number.isFinite(audio.duration) ? audio.duration * 1000 + 2000 : 30000;
+              playbackWatchdog = window.setTimeout(() => settle(true), ms);
+            };
+            audio.onloadedmetadata = cap;
+            cap();
+          });
 
-        // Before play, not after: switching the sink mid-playback drops the
-        // opening syllable on some devices.
-        await routeOutput(audio);
-        await audio.play();
-        return finished;
+          // Before play, not after: switching the sink mid-playback drops the
+          // opening syllable on some devices.
+          await routeOutput(audio);
+
+          // play() is awaited BEFORE the 'ended' watchdog is in charge, and on a
+          // machine with no working audio output — a locked session, a device
+          // unplugged mid-answer, a headless browser — it can hang rather than
+          // reject. That hang used to cost a stalled greeting; now it would also hold
+          // the microphone shut, because the flag that keeps the input closed is
+          // cleared when this function returns. So it is raced, and a play() that
+          // rejects later must not surface as an unhandled rejection.
+          const started = audio.play();
+          if (started && typeof started.catch === 'function') started.catch(() => {});
+          await Promise.race([started, wait(PLAY_START_MS)]);
+          return finished;
+        }
+        // No audio came back in time. Not an error — the browser's own voice is the
+        // fallback, and it is below.
       } catch (error) {
         // Fall through to the browser rather than going silent — a dead speech
         // key should not cost the guest the spoken answer.
@@ -1337,7 +1420,10 @@
     // Not over the top of anything: mid-request, mid-sentence, or while the guest
     // is speaking are all moments when the guest is not, in fact, silent.
     if (busy || listening || nudgesSent >= MAX_NUDGES || !conversationId) return;
-    if (browserTts && window.speechSynthesis.speaking) {
+    // Silence timed from the end of the answer, not from the end of the request. The
+    // flag rather than the engine, for the same reason rearm() uses it: an answer has
+    // gaps in it, and a nudge fired into one talks over the assistant's own sentence.
+    if (isSpeaking()) {
       armNudge();
       return;
     }
@@ -1572,15 +1658,20 @@
   const rearm = () => {
     if (!autoListen || voiceDisabled || busy || listening || suspended) return;
 
-    // Never while the answer is being read out: browser recognition captures the
-    // same device the speaker feeds, and the kiosk would transcribe itself.
+    // Never while the answer is being read out: browser recognition captures the same
+    // device the speaker feeds, and the kiosk would transcribe itself.
     //
-    // Both engines have to be checked. speak() resolves for the server path as
-    // soon as play() is accepted — which is when playback STARTS, not when it
-    // finishes — so waiting on the promise alone would reopen the microphone over
-    // the top of the answer.
+    // The flag first, because it is the only one of these three with no gaps in it.
+    if (isSpeaking()) {
+      window.setTimeout(rearm, 300);
+      return;
+    }
+
+    // The engines as well, as a second opinion — they catch anything that started
+    // speaking without going through speak(), and they are what the TTS_PATIENCE
+    // ceiling below is measured against.
     const stillTalking =
-      (browserTts && window.speechSynthesis.speaking) ||
+      window.speechSynthesis.speaking ||
       (player && !player.paused && !player.ended);
 
     if (stillTalking) {
@@ -1660,6 +1751,10 @@
     // standing between the guest and a working microphone; `busy` already covers "a
     // turn is in flight", and rearm() defers by itself while an answer is playing.
     if (!autoListen || voiceDisabled || suspended || busy || listening) return;
+    // Stated here too, though rearm() would refuse anyway: this is the loop that runs
+    // on a clock with no idea what else is happening, and "never while the assistant
+    // is talking" is the rule it is most likely to break.
+    if (isSpeaking()) return;
     rearm();
   };
 
@@ -1698,6 +1793,11 @@
   // transcript appearing in the input box is better feedback anyway: it shows
   // what was actually heard, not that something was heard.
   const listenInBrowser = () => {
+    // The last gate before the device is actually opened. Everything above is a
+    // decision; this is the line that does it, so the rule is restated where it can no
+    // longer be routed around by a caller that forgot.
+    if (isSpeaking()) return;
+
     recognition = new SpeechRecognitionApi();
     recognition.lang = speechLang;
     recognition.interimResults = true;
@@ -1829,6 +1929,13 @@
 
   const toggleMic = async () => {
     if (busy || voiceDisabled) return;
+
+    // The one case where the microphone may open while the assistant is talking: a
+    // guest who has decided to interrupt. The rule is that the machine must not hear
+    // ITSELF — a person reaching for the button is not that, and being talked over by
+    // a kiosk that will not stop is worse than a clipped sentence. Stop first, so the
+    // device is never open and speaking at the same moment.
+    if (isSpeaking()) stopSpeaking();
 
     // In hands-free the button becomes stop/resume rather than push-to-talk. A
     // guest who wants the microphone shut must be able to shut it.

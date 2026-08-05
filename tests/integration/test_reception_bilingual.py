@@ -344,10 +344,16 @@ class TestTheLanguageChooser:
         parts = orchestrator.language_prompt(bangla_hotel)
 
         assert [p["language"] for p in parts] == ["bn", "en"]
-        assert "বাংলায় কথা বলতে চাইলে বলুন বাংলা" in parts[0]["text"]
-        assert "ইংলিশে কথা বলতে চাইলে বলুন ইংলিশ" in parts[0]["text"]
-        assert "say Bengali" in parts[1]["text"]
-        assert "say English" in parts[1]["text"]
+
+        # Asserted against the copy itself rather than against a quoted sentence: the
+        # wording of the first thing a guest hears is the property's to tune, and a
+        # test that hardcodes it fails on an edit that changed nothing about the
+        # behaviour. What must hold is that the question is asked in BOTH languages,
+        # each in its own part, so each can be spoken by its own voice.
+        assert parts[0]["text"] == orchestrator.LANGUAGE_PROMPT["bn"]
+        assert parts[1]["text"] == orchestrator.LANGUAGE_PROMPT["en"]
+        assert "বাংলা" in parts[0]["text"] and "ইংলিশ" in parts[0]["text"]
+        assert "Bangla" in parts[1]["text"] and "English" in parts[1]["text"]
 
     def test_the_language_question_comes_before_the_welcome(self, client, bangla_hotel):
         """Welcoming somebody before they have said which language they read means

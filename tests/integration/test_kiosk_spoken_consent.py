@@ -188,7 +188,11 @@ class TestTheOpeningIsSequential:
 
         assert "audio.onended = () => settle(true);" in block
         # The call that starts playback must not be the thing the caller awaits.
-        assert "await audio.play();\n        return finished;" in block
+        # play() is started and raced rather than awaited bare — on a machine with no
+        # audio output it hangs instead of rejecting — but what is returned is still
+        # the promise that settles on 'ended', not the one that settles on 'started'.
+        assert "await Promise.race([started, wait(PLAY_START_MS)]);" in block
+        assert "return finished;" in block
         assert "return true;\n        return finished" not in block
 
     def test_the_browser_path_already_waited_for_the_end(self):

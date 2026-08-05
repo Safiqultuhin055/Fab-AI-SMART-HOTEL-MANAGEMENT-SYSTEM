@@ -180,10 +180,9 @@ def greeting(
 #: its own voice. A single utterance cannot be bilingual, and Bangla read by an
 #: English voice is worse than not reading it out at all.
 LANGUAGE_PROMPT = {
-    "bn": "বাংলায় কথা বলতে চাইলে বলুন বাংলা, এবং ইংলিশে কথা বলতে চাইলে বলুন ইংলিশ।",
+    "bn": "বাংলা বা ইংলিশ—যে ভাষায় স্বাচ্ছন্দ্যবোধ করেন, সেটিতেই কথা বলুন।",
     "en": (
-        "If you want to speak in Bengali, say Bengali, and if you want to speak in "
-        "English, say English."
+        "Feel free to speak in Bangla or English—whichever you're more comfortable with."
     ),
 }
 

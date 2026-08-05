@@ -300,7 +300,11 @@ class TestDeviceBar:
         # `audio`, not `player`: the element is held in a local as well as on the
         # shared reference, because stopSpeaking() now nulls the shared one and these
         # three lines must keep talking about the element they created.
-        assert source.index("await routeOutput(audio);") < source.index("await audio.play();")
+        # play() is started rather than awaited bare now — it can hang where there is
+        # no audio output — but the sink still has to be chosen before it begins.
+        assert source.index("await routeOutput(audio);") < source.index(
+            "const started = audio.play();"
+        )
 
     def test_an_unplugged_device_does_not_stay_selected(self):
         source = DEVICES_JS.read_text(encoding="utf-8")
@@ -615,6 +619,74 @@ class TestHandsFree:
         for step in ("clearInterval(waveTimer)", "clearInterval(micWatchdog)", "stopNudge()",
                      "stopRecording()", "recognition.abort()", "stopSpeaking()"):
             assert step in code, step
+
+    def test_the_input_microphone_is_shut_for_the_whole_answer(self):
+        """The rule: while the assistant speaks, the microphone takes no input at all;
+        when it stops, input opens again.
+
+        Everything that could open the device used to work this out by SAMPLING the
+        engine — `speechSynthesis.speaking`, `player.paused`. A sample is a guess about
+        an instant, and an answer is not continuous: there is a gap while the audio is
+        fetched and one between every pair of sentences. The three-second watchdog
+        landed in those gaps and opened the microphone into the middle of the answer,
+        where it heard the next sentence and transcribed it as the guest.
+
+        So there is one flag, set before the first syllable and cleared after the last,
+        and every path that can open the device asks it.
+        """
+        source = KIOSK_JS.read_text(encoding="utf-8")
+
+        assert "let assistantSpeaking = false;" in source
+        assert "const isSpeaking = " in source
+
+        # Set in exactly one place, cleared in that function's finally and by
+        # stopSpeaking() — nothing else may claim the assistant is or is not talking.
+        assert source.count("assistantSpeaking = true;") == 1
+
+        # And consulted by every path that opens the microphone.
+        for opener in ("const rearm = ", "const watchMic = ", "const listenInBrowser = ",
+                       "const askNext = "):
+            block = source[source.index(opener) :]
+            block = block[: block.index("\n  };")]
+            assert "isSpeaking()" in block, opener
+
+    def test_the_flag_that_shuts_the_microphone_cannot_stick(self):
+        """It is cleared when speak() returns, so anything that stops speak() returning
+        holds the microphone shut. Three things could: the provider's HTTP call, which
+        reaches a service on the internet; play(), which hangs rather than rejects on a
+        machine with no audio output; and any engine that stops reporting.
+
+        This was not hypothetical — it silenced the microphone for a whole session
+        while it was being written.
+        """
+        source = KIOSK_JS.read_text(encoding="utf-8")
+
+        for ceiling in ("SPEAK_FETCH_MS", "PLAY_START_MS", "SPEAKING_MAX_MS"):
+            assert ceiling in source, ceiling
+
+        # The fetch is raced, not awaited bare.
+        deliver = source[source.index("const deliverSpeech = ") :]
+        deliver = deliver[: deliver.index("\n  };")]
+        assert "Promise.race" in deliver
+        assert "wait(SPEAK_FETCH_MS)" in deliver
+        assert "wait(PLAY_START_MS)" in deliver
+
+        # And the flag itself expires rather than being believed forever.
+        check = source[source.index("const isSpeaking = ") :]
+        check = check[: check.index("\n  };")]
+        assert "SPEAKING_MAX_MS" in check
+
+    def test_a_guest_may_still_interrupt(self):
+        """The rule is that the machine must not hear ITSELF. A person reaching for the
+        orb is not that, and a kiosk that will not stop talking is worse than a clipped
+        sentence — so the tap stops the speech first, and the device is never open and
+        speaking at the same moment."""
+        source = KIOSK_JS.read_text(encoding="utf-8")
+        block = source[source.index("const toggleMic = ") :]
+        block = block[: block.index("\n  };")]
+
+        assert "if (isSpeaking()) stopSpeaking();" in block
+        assert block.index("stopSpeaking()") < block.index("startHandsFree()")
 
     def test_an_answer_is_spoken_one_sentence_at_a_time(self):
         """The number that decides how bad "it kept talking after I closed it" is.
