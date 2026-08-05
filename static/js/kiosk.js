@@ -178,6 +178,9 @@
   // microphone's state is checked on a clock instead of being trusted to events.
   const MIC_WATCHDOG_MS = 3000;
   let micWatchdog = null;
+  //: True while the microphone is shut only because the tab is hidden, so returning
+  //: to the tab reopens it and a stand-down for any other reason does not.
+  let pausedByHiding = false;
 
   // How long to believe `speechSynthesis.speaking` before overruling it.
   //
@@ -558,7 +561,13 @@
 
   const stopSpeaking = () => {
     if (player) player.pause();
-    if (browserTts) window.speechSynthesis.cancel();
+    // Not gated on browserTts. That flag says which engine we would CHOOSE to speak
+    // with; it says nothing about what is queued. Cancelling an empty queue costs
+    // nothing, and the gate meant every stop path — the guest leaving, a language
+    // switch, the tab being hidden — silently skipped the one engine that outlives
+    // the page. speechSynthesis is a browser-process queue: whatever is in it keeps
+    // reading after the tab is gone unless somebody cancels it.
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     if (finishSpeaking) finishSpeaking(false);
   };
 
@@ -1416,8 +1425,22 @@
 
   const standDown = (hintKey) => {
     autoListen = false;
+
+    // The recogniser has to be TOLD, not just the flag flipped. It owns the
+    // microphone until its own session ends, so a stand-down that only sets a boolean
+    // and repaints the orb leaves the device open — for as long as Chrome feels like
+    // — on a page the guest has walked away from. `pausing` first, so the abort
+    // arrives at onend as our own doing rather than as a failure to retry.
+    if (recognition) {
+      pausing = true;
+      try {
+        recognition.abort();
+      } catch (error) {
+        /* already closing */
+      }
+    }
     stopRecording();
-    el.mic.classList.remove('is-armed', 'is-hearing');
+    el.mic.classList.remove('is-armed', 'is-hearing', 'is-recording');
     if (!voiceDisabled) el.micHint.textContent = t(hintKey || 'standby', 'Tap to speak');
     setState(aiEnabled ? 'idle' : 'offline');
   };
@@ -1866,11 +1889,67 @@
     el.micHint.textContent = restingHint();
   }
 
-  window.addEventListener('beforeunload', () => {
+  // --- Leaving the page, and looking away ------------------------------------
+  //
+  // `speechSynthesis` does not belong to the page. It is a queue in the BROWSER
+  // process, so an utterance that is mid-sentence when the tab closes carries on
+  // speaking: the guest shuts the window and the hotel's receptionist is still
+  // talking to an empty room, with no page left to stop it. Cancelling on the way
+  // out is the page's job and nobody else's.
+  //
+  // This used to clear the timers and the recorder and leave the voice running,
+  // which is exactly the shape of the bug: everything visible stopped, and the only
+  // part that lives outside the page kept going.
+  const teardown = () => {
+    // First, so nothing below can reopen the microphone while we are shutting down:
+    // stopSpeaking() settles the pending speak() promise, and applyTurn reopens the
+    // microphone in that promise's .then().
+    autoListen = false;
+    pausedByHiding = false;
+
     window.clearInterval(waveTimer);
     window.clearInterval(micWatchdog);
+    micWatchdog = null;
     stopNudge();
     stopRecording();
+    if (recognition) {
+      try {
+        recognition.abort();
+      } catch (error) {
+        /* already closing */
+      }
+    }
+    stopSpeaking();
+  };
+
+  window.addEventListener('beforeunload', teardown);
+  // And pagehide, which is the reliable one. `beforeunload` is skipped when a tab is
+  // discarded, when the page is frozen on a phone, and when the browser is killed
+  // rather than closed — all cases where the utterance would otherwise outlive the
+  // page. Both fire in the ordinary close, and teardown is idempotent.
+  window.addEventListener('pagehide', teardown);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // Looking away is not leaving, so this is a pause rather than a teardown: the
+      // guest may come back to the tab and expect the conversation to still be there.
+      // But a page nobody is looking at must not read an answer aloud, and must not
+      // hold a microphone open while it does nothing.
+      stopNudge();
+      if (autoListen) {
+        pausedByHiding = true;
+        standDown('standby');
+      }
+      stopSpeaking();
+      return;
+    }
+    // Back. Resume only what hiding stopped — `suspended` means another screen owns
+    // the microphone (the photo-consent overlay), and reopening it underneath that
+    // would be two recognisers fighting for one device.
+    if (pausedByHiding && !suspended) {
+      pausedByHiding = false;
+      startHandsFree();
+    }
   });
 
   // --- Opening the conversation ----------------------------------------------

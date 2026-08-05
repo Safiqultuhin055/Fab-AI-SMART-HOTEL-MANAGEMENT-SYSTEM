@@ -576,6 +576,92 @@ class TestHandsFree:
         assert "window.setTimeout(rearm, retryDelay());" in handler
         assert "standDown" not in handler
 
+    def test_the_voice_does_not_outlive_the_page(self):
+        """Reported from a real browser: the guest closed the window and the assistant
+        carried on talking.
+
+        `speechSynthesis` is a queue in the BROWSER process, not in the page. An
+        utterance that is mid-sentence when the tab closes keeps reading, and there is
+        no page left to stop it — so cancelling on the way out is the page's job.
+
+        The old teardown cleared the timers and the recorder and left the voice running:
+        everything visible stopped, and the one part that lives outside the page kept
+        going.
+        """
+        source = KIOSK_JS.read_text(encoding="utf-8")
+
+        assert "const teardown = " in source
+        # Both events. beforeunload is skipped when a tab is discarded, when a phone
+        # freezes the page, and when the browser is killed rather than closed — all
+        # cases where the utterance would otherwise outlive the page.
+        assert "window.addEventListener('beforeunload', teardown);" in source
+        assert "window.addEventListener('pagehide', teardown);" in source
+
+        block = source[source.index("const teardown = ") :]
+        block = block[: block.index("\n  };")]
+        # Comments dropped before ordering: they explain the order, so they mention the
+        # calls before the calls happen and an index on the raw text reads backwards.
+        code = "\n".join(
+            line for line in block.splitlines() if not line.strip().startswith(("//", "/*", "*"))
+        )
+        # Order matters: stopSpeaking() settles the pending speak() promise, and
+        # applyTurn reopens the microphone in that promise's .then().
+        assert code.index("autoListen = false") < code.index("stopSpeaking()")
+        for step in ("clearInterval(waveTimer)", "clearInterval(micWatchdog)", "stopNudge()",
+                     "stopRecording()", "recognition.abort()", "stopSpeaking()"):
+            assert step in code, step
+
+    def test_stopping_the_voice_is_not_gated_on_which_engine_was_chosen(self):
+        """`stopSpeaking()` used to cancel synthesis only `if (browserTts)`.
+
+        That flag says which engine we would CHOOSE to speak with. It says nothing
+        about what is queued — so every stop path (the guest leaving, a language
+        switch, the tab hidden) skipped the one engine that outlives the page.
+        Cancelling an empty queue costs nothing.
+        """
+        source = KIOSK_JS.read_text(encoding="utf-8")
+        block = source[source.index("const stopSpeaking = ") :]
+        block = block[: block.index("\n  };")]
+
+        assert "if (window.speechSynthesis) window.speechSynthesis.cancel();" in block
+        assert "if (browserTts)" not in block
+
+    def test_a_stand_down_actually_releases_the_microphone(self):
+        """It used to flip `autoListen` and repaint the orb, and leave the recognition
+        session running — so the device stayed open, for as long as Chrome felt like,
+        on a page the guest had walked away from."""
+        source = KIOSK_JS.read_text(encoding="utf-8")
+        block = source[source.index("const standDown = ") :]
+        block = block[: block.index("\n  };")]
+
+        assert "recognition.abort()" in block
+        # Flagged as our own close first, so onend does not count it as a failure and
+        # retry it.
+        assert block.index("pausing = true") < block.index("recognition.abort()")
+        assert "'is-recording'" in block
+
+    def test_a_hidden_tab_neither_speaks_nor_listens(self):
+        """Looking away is not leaving: the conversation stays, but a page nobody is
+        looking at must not read an answer aloud and must not hold a microphone open.
+
+        Not exercised end to end — headless Chrome reports every target as visible, so
+        a real tab switch cannot be staged there. This pins the wiring.
+        """
+        source = KIOSK_JS.read_text(encoding="utf-8")
+        assert "document.addEventListener('visibilitychange'" in source
+
+        block = source[source.index("document.addEventListener('visibilitychange'") :]
+        block = block[: block.index("\n  });")]
+
+        assert "document.hidden" in block
+        assert "standDown(" in block
+        assert "stopSpeaking()" in block
+        # Coming back resumes only what hiding stopped. `suspended` means another
+        # screen owns the microphone, and reopening underneath that is two recognisers
+        # fighting for one device.
+        assert "pausedByHiding" in block
+        assert "!suspended" in block
+
     def test_it_stops_when_the_guest_leaves(self):
         """Privacy control, not tidiness."""
         source = KIOSK_JS.read_text(encoding="utf-8")
