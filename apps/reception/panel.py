@@ -57,12 +57,12 @@ def panel_context(hotel, *, lobby: bool = False, channel: str = "web") -> dict:
     ``lobby`` decides whether a camera is on the table at all; ``channel`` decides
     whether the microphone opens by itself (:data:`HANDS_FREE_CHANNELS`).
     """
-    chrome = _chrome(hotel)
+    chrome = _chrome(hotel, channel)
     return {
         "channel": channel,
         "kiosk_copy": chrome,
         "kiosk_copy_json": json.dumps(chrome, ensure_ascii=False),
-        "kiosk_copy_all_json": copy.chrome_json(),
+        "kiosk_copy_all_json": copy.chrome_json(channel),
         "progress_steps": list(chrome["progress_steps"].items()),
         "tiles": chrome["tiles"],
         "vision_panels": _vision_panels(hotel, chrome, lobby=lobby),
@@ -79,9 +79,15 @@ def panel_context(hotel, *, lobby: bool = False, channel: str = "web") -> dict:
     }
 
 
-def _chrome(hotel) -> dict:
-    """The chrome dictionary for this property's kiosk language."""
-    return copy.chrome(hotel.kiosk_language if hotel else None)
+def _chrome(hotel, channel: str = "") -> dict:
+    """The chrome for this property's language, named for the page it is on.
+
+    The channel decides what the assistant calls itself: the lobby terminal and the
+    staff console are AI Reception, and the public booking page is Online Booking —
+    which is what a guest opening a hotel's website came for, and what the browser tab
+    has to be findable by.
+    """
+    return copy.chrome(hotel.kiosk_language if hotel else None, channel)
 
 
 def _ai_status(hotel) -> dict:

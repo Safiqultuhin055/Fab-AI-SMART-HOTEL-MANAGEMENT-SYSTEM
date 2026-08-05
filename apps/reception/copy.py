@@ -662,16 +662,45 @@ def resolve(language: str | None) -> str:
     return BN if str(language or EN).lower().startswith(BN) else EN
 
 
-def chrome(language: str | None) -> dict[str, Any]:
-    """The chrome dictionary for one language."""
-    return CHROME[resolve(language)]
+#: What the assistant calls itself, per channel.
+#:
+#: The same widget, the same agent and the same services appear on three pages, and
+#: on two of them "AI Reception" is the right name for it. On the public booking page
+#: it is not: a guest who opened a hotel's website to book a room has not walked into
+#: a lobby, and a browser tab titled "এআই রিসেপশন" is a tab they cannot find again.
+#: The page is called what it does.
+#:
+#: Only the identity keys are overridden. Everything else the assistant says is the
+#: same on every channel, and forking the whole dictionary per channel would be three
+#: places to fix the next wording change in.
+CHANNEL_IDENTITY: dict[str, dict[str, dict[str, str]]] = {
+    "website": {
+        EN: {
+            "page_title": "Online booking",
+            "brand_sub": "Online booking",
+            "kiosk_title": "Online booking",
+        },
+        BN: {
+            "page_title": "অনলাইন বুকিং",
+            "brand_sub": "অনলাইন বুকিং",
+            "kiosk_title": "অনলাইন বুকিং",
+        },
+    },
+}
+
+
+def chrome(language: str | None, channel: str = "") -> dict[str, Any]:
+    """The chrome dictionary for one language, named for the channel it is on."""
+    words = CHROME[resolve(language)]
+    identity = CHANNEL_IDENTITY.get(channel, {}).get(resolve(language))
+    return {**words, **identity} if identity else words
 
 
 def enrol(language: str | None) -> dict[str, Any]:
     return ENROL[resolve(language)]
 
 
-def chrome_json() -> str:
+def chrome_json(channel: str = "") -> str:
     """Both languages, for the browser.
 
     Both rather than one, because the guest switches language by tapping a chip
@@ -680,5 +709,13 @@ def chrome_json() -> str:
     screen whose entire job is to feel like talking to somebody.
 
     It is ~6 KB of JSON on a page that already carries a room photograph.
+
+    The channel's own name has to be in BOTH halves. The client relabels the header
+    from this on every language switch, so without it the booking page announces
+    itself as Online Booking until the guest taps the language chip and it turns
+    into AI Reception.
     """
-    return json.dumps(CHROME, ensure_ascii=False)
+    return json.dumps(
+        {language: chrome(language, channel) for language in (EN, BN)},
+        ensure_ascii=False,
+    )

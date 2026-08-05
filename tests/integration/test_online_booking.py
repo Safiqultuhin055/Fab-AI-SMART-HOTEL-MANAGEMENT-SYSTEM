@@ -456,6 +456,43 @@ class TestTheAssistantTakesTheBooking:
         hotel.save(update_fields=["kiosk_hands_free"])
         assert 'data-hands-free="false"' in page(client, hotel)
 
+    def test_the_page_is_called_what_it_does(self, client, hotel, inventory):
+        """This is Online Booking, not AI Reception.
+
+        The same widget and the same agent appear on three pages, and on two of them
+        "AI Reception" is the right name. Here it is not: a guest who opened a hotel's
+        website to book a room has not walked into a lobby, and a browser tab titled
+        "এআই রিসেপশন" is a tab they cannot find again after switching away to check
+        their dates.
+        """
+        import json
+
+        from apps.reception import copy
+
+        hotel.kiosk_language = "bn"
+        hotel.save(update_fields=["kiosk_language"])
+        body = page(client, hotel)
+
+        assert "<title>অনলাইন বুকিং" in body
+        assert 'id="kiosk-brand-sub">অনলাইন বুকিং' in body
+        assert "এআই রিসেপশন" not in body
+
+        # Both halves of the client's copy, because the header is relabelled from it on
+        # every language switch — otherwise the page announces itself as Online Booking
+        # until the guest taps the language chip and it turns into AI Reception.
+        both = json.loads(copy.chrome_json("website"))
+        assert both["bn"]["brand_sub"] == "অনলাইন বুকিং"
+        assert both["en"]["brand_sub"] == "Online booking"
+
+    def test_the_lobby_terminal_is_still_reception(self, client, hotel):
+        """The rename is scoped to the channel. A terminal standing in a lobby is
+        exactly what "AI Reception" describes."""
+        from apps.reception import copy
+
+        assert copy.chrome("bn")["brand_sub"] == "এআই রিসেপশন"
+        assert copy.chrome("bn", "kiosk")["brand_sub"] == "এআই রিসেপশন"
+        assert copy.chrome("en", "web")["page_title"] == "AI Reception"
+
     def test_nobody_is_promised_a_human_here(self, client, hotel, inventory):
         """No staff member is watching this conversation, so nothing may offer one.
 

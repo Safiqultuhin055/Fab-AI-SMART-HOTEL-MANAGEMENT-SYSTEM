@@ -24,6 +24,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from apps.core.exceptions import ASHOSError
+from apps.reception import copy
 from apps.reception.panel import panel_context
 from services.billing import payment_policy
 from services.booking import online
@@ -77,7 +78,11 @@ def _context(request, hotel, *, error: str = "") -> dict:
             "lines": payment_policy.lines(hotel, _language(hotel)),
             "badge": payment_policy.badge(hotel, _language(hotel)),
         },
-        "page_title": "Online booking",
+        # In the guest's language, from the same place the header takes its name.
+        # It was the one string on this page written in English regardless of who was
+        # reading it — and it is the browser tab, which is how somebody finds the page
+        # again after switching away to check their dates.
+        "page_title": copy.chrome(_language(hotel), "website")["page_title"],
     }
 
 
