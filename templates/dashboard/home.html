@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h5 mb-0">{% trans "Dashboard" %}</h1>
+    <div class="text-muted" style="font-size:.78rem">
+      {% if hotel %}{{ hotel.name }} · {{ hotel.city }} · {{ business_date|date:"l, d M Y" }}
+      {% else %}{% trans "No hotel selected" %}{% endif %}
+    </div>
+  </div>
+  <span class="pill {% if ai_status.state == 'online' %}pill--ok{% else %}pill--warn{% endif %}">
+    <span class="status-dot {% if ai_status.state == 'online' %}status-dot--ok{% else %}status-dot--off{% endif %}"></span>
+    {{ ai_status.label }}
+  </span>
+</div>
+
+{% if not hotel %}
+  <div class="glass-card"><div class="not-yet">{% trans "No hotel is bound to this session." %}</div></div>
+{% else %}
+
+{% comment %} KPI strip — Prototype.png S1. Every number is a live query. {% endcomment %}
+<div class="row g-3 mb-3">
+  {% for kpi in kpis %}
+  <div class="col-6 col-lg">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{{ kpi.label }}</div>
+      <div class="kpi__value">{{ kpi.prefix }}{{ kpi.value }}{{ kpi.suffix }}</div>
+      {% if kpi.delta %}
+        <div class="kpi__delta {% if kpi.delta > 0 %}kpi__delta--up{% else %}kpi__delta--down{% endif %}">
+          {% if kpi.delta > 0 %}▲{% else %}▼{% endif %} {{ kpi.delta }}% {% trans "vs yesterday" %}
+        </div>
+      {% elif kpi.sub %}
+        <div class="kpi__delta text-muted">{{ kpi.sub }}</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="glass-card h-100">
+      <div class="card-title-ashos">{% trans "Room Status Overview" %}</div>
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div style="font-size:2rem;font-weight:680">{{ stats.total_rooms }}</div>
+        <div class="text-muted" style="font-size:.76rem">{% trans "sellable rooms" %}<br>
+          {% trans "ADR" %} {{ hotel.currency }} {{ adr|floatformat:0 }}</div>
+      </div>
+      {% for row in room_status %}
+      <div class="mb-2">
+        <div class="d-flex justify-content-between" style="font-size:.82rem">
+          <span><span class="status-dot" style="background:{{ row.colour }}"></span> {{ row.label }}</span>
+          <span class="text-muted">{{ row.count }} ({{ row.percent }}%)</span>
+        </div>
+        <div style="height:6px;border-radius:3px;background:var(--bg-surface-hover);overflow:hidden">
+          <div style="height:100%;width:{{ row.percent }}%;background:{{ row.colour }}"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="glass-card glass-card--flush h-100">
+      <div class="p-3 pb-0 d-flex justify-content-between align-items-center">
+        <div class="card-title-ashos mb-0">{% trans "Recent Bookings" %}</div>
+        <a class="btn btn-ghost btn-sm" href="{% url 'booking:home' %}">{% trans "View all" %}</a>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="table-ashos">
+          <thead>
+            <tr>
+              <th>{% trans "Guest" %}</th><th>{% trans "Room" %}</th>
+              <th>{% trans "Check-in" %}</th><th>{% trans "Check-out" %}</th>
+              <th>{% trans "Total" %}</th><th>{% trans "Status" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for booking in recent %}
+            <tr>
+              <td>{{ booking.guest.full_name }}</td>
+              <td class="text-muted">
+                {% for allocation in booking.allocations.all %}
+                  {% if allocation.room %}{{ allocation.room.number }}{% else %}{{ allocation.room_type.code }}{% endif %}{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+              </td>
+              <td class="text-muted">{{ booking.check_in|date:"d M Y" }}</td>
+              <td class="text-muted">{{ booking.check_out|date:"d M Y" }}</td>
+              <td>{{ hotel.currency }} {{ booking.grand_total|floatformat:0 }}</td>
+              <td>
+                {% if booking.status == 'checked_in' %}<span class="pill pill--ok">{{ booking.get_status_display }}</span>
+                {% elif booking.status == 'confirmed' %}<span class="pill pill--info">{{ booking.get_status_display }}</span>
+                {% elif booking.status == 'cancelled' or booking.status == 'no_show' %}<span class="pill pill--danger">{{ booking.get_status_display }}</span>
+                {% else %}<span class="pill">{{ booking.get_status_display }}</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-muted">{% trans "No bookings yet." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="glass-card h-100">
+      <div class="card-title-ashos">{% trans "Today" %}</div>
+      <table class="table-ashos">
+        <tbody>
+          <tr><td>{% trans "Arrivals" %}</td><td class="text-end"><b>{{ stats.arrivals }}</b></td></tr>
+          <tr><td>{% trans "Departures" %}</td><td class="text-end"><b>{{ stats.departures }}</b></td></tr>
+          <tr><td>{% trans "In house" %}</td><td class="text-end"><b>{{ stats.in_house }}</b></td></tr>
+          <tr><td>{% trans "Room revenue" %}</td><td class="text-end">{{ hotel.currency }} {{ stats.room_revenue|floatformat:0 }}</td></tr>
+          <tr><td>{% trans "Payments taken" %}</td><td class="text-end">{{ hotel.currency }} {{ payments_today|floatformat:0 }}</td></tr>
+          <tr>
+            <td>{% trans "Outstanding" %}</td>
+            <td class="text-end" style="color:{% if outstanding > 0 %}var(--warn){% else %}var(--ok){% endif %}">
+              {{ hotel.currency }} {{ outstanding|floatformat:0 }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="glass-card glass-card--flush h-100">
+      <div class="p-3 pb-0"><div class="card-title-ashos">{% trans "Arrivals expected" %}</div></div>
+      <table class="table-ashos">
+        <tbody>
+          {% for booking in arrivals %}
+          <tr>
+            <td>{{ booking.guest.full_name }}</td>
+            <td class="text-muted text-end">{{ booking.nights }}n · {{ booking.get_status_display }}</td>
+          </tr>
+          {% empty %}
+          <tr><td class="text-muted">{% trans "Nobody left to arrive today." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="glass-card glass-card--flush h-100">
+      <div class="p-3 pb-0"><div class="card-title-ashos">{% trans "Departures" %}</div></div>
+      <table class="table-ashos">
+        <tbody>
+          {% for booking in departures %}
+          <tr>
+            <td>{{ booking.guest.full_name }}</td>
+            <td class="text-muted text-end">{{ hotel.currency }} {{ booking.balance_due|floatformat:0 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td class="text-muted">{% trans "No departures today." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Occupancy & room revenue — last 14 days" %}</div>
+      <div style="display:flex;align-items:flex-end;gap:4px;height:140px">
+        {% for point in trend %}
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px"
+             title="{{ point.label }}: {{ point.occupancy }}% · {{ hotel.currency }} {{ point.revenue|floatformat:0 }}">
+          <div style="width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--accent-strong),var(--accent));height:{{ point.occupancy }}%"></div>
+          <div class="text-muted" style="font-size:.6rem">{{ point.label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="text-muted mt-2" style="font-size:.72rem">
+        {% trans "Bar height is occupancy. Hover for revenue and ADR." %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "AI Reception — last 24 hours" %}</div>
+      <div class="row g-3" style="font-size:.86rem">
+        <div class="col-6 col-lg-2"><div class="text-muted">{% trans "Conversations" %}</div><b>{{ ai.conversations }}</b></div>
+        <div class="col-6 col-lg-2"><div class="text-muted">{% trans "Resolved by AI" %}</div><b>{{ ai.self_service_rate|floatformat:0 }}%</b></div>
+        <div class="col-6 col-lg-2"><div class="text-muted">{% trans "AI calls" %}</div><b>{{ ai.calls }}</b></div>
+        <div class="col-6 col-lg-2"><div class="text-muted">{% trans "AI spend" %}</div><b>${{ ai.cost_usd|floatformat:4 }}</b></div>
+        <div class="col-6 col-lg-2"><div class="text-muted">{% trans "Failures" %}</div><b>{{ ai.failures }}</b></div>
+        {% comment %}
+          Only offered to roles that may actually open it. A link that returns
+          403 teaches staff to distrust the navigation.
+        {% endcomment %}
+        {% if perms.core.access_reception %}
+        <div class="col-6 col-lg-2"><a class="btn btn-ghost btn-sm" href="{% url 'reception:home' %}">{% trans "Open reception" %}</a></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Platform Health" %}</div>
+      <div id="health-panel" class="row g-2" data-endpoint="{% url 'v1:health' %}">
+        <div class="col-auto"><span class="pill" data-check="database">{% trans "Database" %}: …</span></div>
+        <div class="col-auto"><span class="pill" data-check="cache">{% trans "Cache" %}: …</span></div>
+        <div class="col-auto"><span class="pill" data-check="pgvector">pgvector: …</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

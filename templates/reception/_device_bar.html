@@ -1,0 +1,35 @@
+{% comment %}
+  Which camera, microphone and speaker this terminal uses.
+
+  A lobby kiosk has a fixed rig — a webcam on the stand, a boundary mic, a powered
+  speaker — plus the machine's own built-in versions that nobody wants. The browser
+  picks "default", which is regularly the wrong one. Staff set this once at install;
+  the choice is stored per property and every guest afterwards gets the right
+  devices.
+
+  One partial, two homes: the terminal puts it in the page header beside the clock,
+  the staff console keeps it in the widget's own header. The ids are what
+  kiosk-devices.js binds to, so it must appear exactly once per page.
+
+  The caveats live in the bar's own tooltip, with #device-note carrying the same
+  text for a screen reader. Three lines of small print across the top of a lobby
+  screen is noise; a guest never needs to read it, and the staff member setting the
+  terminal up will hover.
+
+  Hidden entirely where the browser cannot enumerate devices.
+{% endcomment %}
+<div class="device-bar" id="kiosk-devices">
+  <label class="device-chip" for="device-camera">
+    <span class="device-chip__icon" aria-hidden="true">🎥</span>
+    <select id="device-camera" aria-label="{{ kiosk_copy.devices.aria_camera }}"></select>
+  </label>
+  <label class="device-chip" for="device-mic">
+    <span class="device-chip__icon" aria-hidden="true">🎙</span>
+    <select id="device-mic" aria-label="{{ kiosk_copy.devices.aria_mic }}"></select>
+  </label>
+  <label class="device-chip" for="device-speaker">
+    <span class="device-chip__icon" aria-hidden="true">🔊</span>
+    <select id="device-speaker" aria-label="{{ kiosk_copy.devices.aria_speaker }}"></select>
+  </label>
+  <span class="visually-hidden" id="device-note" aria-live="polite"></span>
+</div>

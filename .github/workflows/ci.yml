@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements/dev.txt
+      - name: ruff
+        run: ruff check .
+      - name: black
+        run: black --check .
+      - name: mypy
+        run: mypy apps api services config
+        continue-on-error: true # advisory until annotations are complete
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Same image as production: testing against plain postgres would let a
+        # broken vector migration reach main.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: ashos
+          POSTGRES_USER: ashos
+          POSTGRES_PASSWORD: ashos
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ashos"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DATABASE_URL: postgres://ashos:ashos@localhost:5432/ashos
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      DJANGO_SECRET_KEY: ci-secret-key-not-production
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements/dev.txt
+
+      - name: Missing migrations check
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Migrate
+        run: python manage.py migrate --noinput
+
+      - name: Tests
+        # ai_eval hits a real provider and costs money; it runs nightly, not per PR.
+        run: pytest -m "not ai_eval" --cov --cov-report=xml
+
+      - name: OpenAPI schema builds
+        run: python manage.py spectacular --file /tmp/schema.yml --fail-on-warn
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements/dev.txt
+      - name: Django deployment checklist
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.prod
+          DJANGO_SECRET_KEY: ci-secret-key-not-production
+          DJANGO_ALLOWED_HOSTS: example.com
+        run: python manage.py check --deploy --fail-level WARNING
+      - name: Dependency audit
+        run: pip install pip-audit && pip-audit -r requirements/base.txt
+        continue-on-error: true
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build application image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          build-args: EXTRAS=base
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

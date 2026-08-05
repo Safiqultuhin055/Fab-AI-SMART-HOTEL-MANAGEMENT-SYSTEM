@@ -1,0 +1,50 @@
+-r base.txt
+
+# ==============================================================================
+# HEAVY AI DEPENDENCIES — installed only on nodes that run local inference.
+# Phase 2 (RAG/STT/TTS) and Phase 3 (Vision) pull these in.
+#
+# Everything here is optional at runtime: services/ai/ degrades to remote API
+# providers when a local backend is unavailable. Never import these modules at
+# Django startup — import inside the provider that needs them.
+#
+# LICENCE WARNING (goal.txt R2): InsightFace pretrained weights are
+# NON-COMMERCIAL. Audit every weight file before commercial deployment.
+# ==============================================================================
+
+# --- Text embeddings / rerank -------------------------------------------------
+sentence-transformers>=3.4
+transformers>=4.48
+torch>=2.6
+
+# --- Image embeddings (CLIP) --------------------------------------------------
+open_clip_torch>=2.30
+
+# --- Speech -------------------------------------------------------------------
+faster-whisper>=1.1
+piper-tts>=1.2 ; sys_platform != "win32"
+
+# --- Vision -------------------------------------------------------------------
+opencv-python-headless>=4.11
+onnxruntime>=1.20
+insightface>=0.7
+
+# --- OCR ----------------------------------------------------------------------
+paddleocr>=2.9
+pytesseract>=0.3.13
+
+# --- Document ingestion (RAG knowledge base) ----------------------------------
+pypdf>=5.1
+python-docx>=1.1
+
+# Keyless text to speech with Bangla neural voices, via Microsoft's Edge
+# read-aloud service. It is the only way to read Bangla aloud on a stock Windows
+# terminal — no Bangla voice ships with the OS, so the browser's own
+# speechSynthesis simply cannot do it, and English-only answers on a Bangla
+# property is the opposite of the point.
+#
+# Not a contracted API: Microsoft can change or block that endpoint without
+# notice and there is no SLA behind it. Fine for a pilot, wrong for a group under
+# a service agreement — configure OpenAI tts-1 or Azure Speech in AI Center and
+# it takes precedence automatically (services/ai/providers/edge_tts.py).
+edge-tts==7.2.8

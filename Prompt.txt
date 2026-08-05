@@ -1,0 +1,675 @@
+You are a Principal Software Architect, Senior Python Engineer, AI Engineer, Solution Architect, UI/UX Designer, Database Architect, DevOps Engineer, and Product Owner.
+
+Your responsibility is to build an enterprise-grade AI Native Hotel Operating System named
+
+AI Smart Hotel OS (ASHOS)
+
+The objective is NOT to build a traditional Hotel Management System.
+
+Instead, build an AI-FIRST Hotel Platform where Artificial Intelligence becomes the primary interface.
+
+==================================================
+PRIMARY OBJECTIVE
+==================================================
+
+The project must feel like
+
+"ChatGPT + Tesla Dashboard + Apple UI + Enterprise Hotel PMS"
+
+Everything should be modern, intelligent, modular and production-ready.
+
+AI should control almost every workflow.
+
+The software must be scalable for SaaS deployment where one platform can manage thousands of hotels.
+
+==================================================
+TECH STACK
+==================================================
+
+Backend
+
+Python 3.13
+
+Django 5
+
+Django REST Framework
+
+Celery
+
+Redis
+
+WebSocket
+
+JWT Authentication
+
+RBAC
+
+==================================================
+
+Frontend
+
+Bootstrap 5
+
+HTML5
+
+JavaScript ES6+
+
+CSS3
+
+Chart.js
+
+HTMX (optional)
+
+==================================================
+
+Database
+
+PostgreSQL
+
+pgvector
+
+==================================================
+
+AI Stack
+
+OpenAI Compatible API
+
+LLM
+
+RAG
+
+Vector Search
+
+Sentence Transformers
+
+Whisper
+
+Text-to-Speech
+
+OpenCV
+
+InsightFace
+
+PaddleOCR
+
+LangChain (optional)
+
+==================================================
+
+Storage
+
+MinIO
+
+S3 Compatible Storage
+
+==================================================
+
+Deployment
+
+Docker
+
+Docker Compose
+
+Nginx
+
+HTTPS
+
+CI/CD Ready
+
+==================================================
+SYSTEM DESIGN
+==================================================
+
+The project must follow clean architecture.
+
+apps/
+
+api/
+
+services/
+
+repositories/
+
+models/
+
+serializers/
+
+templates/
+
+static/
+
+config/
+
+middleware/
+
+permissions/
+
+utils/
+
+ai/
+
+rag/
+
+vision/
+
+vector/
+
+notifications/
+
+==================================================
+MAIN MODULES
+==================================================
+
+1. AI Reception
+
+This is the heart of the software.
+
+Guest arrives
+
+↓
+
+Camera detects guest
+
+↓
+
+Face Recognition
+
+↓
+
+Embedding Generation
+
+↓
+
+Search pgvector
+
+↓
+
+If found
+
+Welcome back
+
+Else
+
+Register New Guest
+
+AI starts speaking automatically.
+
+Features
+
+AI Avatar
+
+Voice Conversation
+
+Face Recognition
+
+Face Registration
+
+Voice Recognition
+
+Passport OCR
+
+NID OCR
+
+Guest Verification
+
+Live Translation
+
+AI Concierge
+
+Multi Language
+
+==================================================
+
+2. Reservation
+
+Online Booking
+
+Walk-in Booking
+
+Room Availability
+
+AI Room Recommendation
+
+Digital Signature
+
+QR Check-in
+
+Face Check-in
+
+==================================================
+
+3. Guest Mobile App
+
+Chat
+
+Food Order
+
+Laundry
+
+Housekeeping
+
+Checkout
+
+Bill
+
+Notifications
+
+Digital Key
+
+==================================================
+
+4. Housekeeping
+
+AI predicts
+
+Which room should be cleaned first.
+
+Priority Score
+
+Task Assignment
+
+Dirty Queue
+
+Cleaning Status
+
+==================================================
+
+5. Restaurant
+
+Menu
+
+Order
+
+Kitchen
+
+Room Service
+
+Billing
+
+==================================================
+
+6. Billing
+
+Invoice
+
+Payment
+
+Checkout
+
+Due Reminder
+
+Refund
+
+Corporate Billing
+
+==================================================
+
+7. AI Center
+
+This is the most important module.
+
+==================================================
+AI Concierge
+==================================================
+
+Guest asks
+
+Where is the swimming pool?
+
+Breakfast time?
+
+WiFi password?
+
+Airport distance?
+
+Nearby shopping mall?
+
+Prayer room?
+
+Checkout policy?
+
+The AI must answer using
+
+LLM + RAG
+
+Knowledge Source
+
+PDF
+
+DOCX
+
+Hotel Policy
+
+Menu
+
+Rules
+
+Emergency Guide
+
+Images
+
+Videos Metadata
+
+==================================================
+AI Vision
+==================================================
+
+Face Recognition
+
+OCR
+
+Object Detection
+
+Image Search
+
+Document Scan
+
+==================================================
+Hotel Image Vector Search
+==================================================
+
+Every hotel image must be converted into embeddings.
+
+Store embeddings inside pgvector.
+
+Images include
+
+Room
+
+Lobby
+
+Pool
+
+Gym
+
+Restaurant
+
+Spa
+
+Conference Hall
+
+Garden
+
+Reception
+
+Parking
+
+Guest can search
+
+"Sea View Room"
+
+"Large conference room"
+
+"Luxury Suite"
+
+"Swimming Pool at Night"
+
+"Balcony"
+
+"Kids Area"
+
+Use semantic similarity.
+
+Return
+
+Image
+
+Room
+
+Price
+
+Availability
+
+Similarity Score
+
+==================================================
+Lost & Found AI
+==================================================
+
+Upload object image
+
+Generate embedding
+
+Search existing lost items
+
+Suggest best match
+
+==================================================
+Interior Search
+==================================================
+
+Search hotel decoration using images.
+
+==================================================
+Admin Dashboard
+==================================================
+
+Dashboard
+
+Reception
+
+Guests
+
+Rooms
+
+Restaurant
+
+Housekeeping
+
+AI Center
+
+Settings
+
+==================================================
+AI Center
+==================================================
+
+Models
+
+LLM
+
+Embedding Model
+
+OCR
+
+Face Model
+
+Speech
+
+Prompt Manager
+
+System Prompt
+
+Reception Prompt
+
+Restaurant Prompt
+
+Housekeeping Prompt
+
+Knowledge Center
+
+Upload PDF
+
+Upload DOCX
+
+Upload Images
+
+Upload Videos Metadata
+
+Rebuild Vector Index
+
+AI Logs
+
+Conversation Logs
+
+Latency
+
+Errors
+
+Token Usage
+
+==================================================
+Analytics Dashboard
+==================================================
+
+Occupancy
+
+Revenue
+
+Guest Satisfaction
+
+AI Usage
+
+Popular Questions
+
+Heat Maps
+
+Charts
+
+Prediction
+
+==================================================
+AI AUTOMATION
+==================================================
+
+Automatically
+
+Detect Guest
+
+Recommend Room
+
+Predict Checkout
+
+Notify Guest
+
+Notify Manager
+
+Suggest Upgrade
+
+Suggest Restaurant
+
+Predict Cleaning
+
+Predict Maintenance
+
+Predict Revenue
+
+==================================================
+SECURITY
+==================================================
+
+JWT
+
+RBAC
+
+Audit Log
+
+Encrypted Storage
+
+Rate Limiting
+
+API Security
+
+==================================================
+DESIGN
+==================================================
+
+Apple Inspired
+
+Glassmorphism
+
+Dark Mode
+
+Responsive
+
+Professional
+
+Minimal
+
+Animated Dashboard
+
+Modern Cards
+
+Beautiful Charts
+
+Floating AI Assistant
+
+==================================================
+DATABASE
+==================================================
+
+Design complete PostgreSQL database.
+
+Normalize all tables.
+
+Use UUID.
+
+Use pgvector.
+
+Create ER Diagram.
+
+==================================================
+API
+==================================================
+
+Generate REST APIs.
+
+Swagger Documentation.
+
+OpenAPI.
+
+==================================================
+DELIVERABLES
+==================================================
+
+Generate
+
+Complete Django Project
+
+Production Ready Architecture
+
+Database Schema
+
+ER Diagram
+
+Use Cases
+
+User Stories
+
+Wireframes
+
+Bootstrap UI
+
+API Documentation
+
+Docker Configuration
+
+CI/CD Structure
+
+README
+
+Installation Guide
+
+Testing Strategy
+
+Deployment Guide
+
+==================================================
+IMPORTANT
+==================================================
+
+Never generate toy code.
+
+Never generate demo UI.
+
+Everything must be modular.
+
+Everything must be scalable.
+
+Everything must be production-ready.
+
+Write enterprise-quality code following best practices.
+
+Think like a Senior Architect before writing any code.
+
+Always explain architecture decisions before implementation.

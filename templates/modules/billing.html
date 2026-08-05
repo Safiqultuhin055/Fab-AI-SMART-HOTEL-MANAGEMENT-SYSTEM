@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h5 mb-1">{% trans "Billing & Finance" %}</h1>
+    <div class="text-muted" style="font-size:.78rem">
+      {% trans "Business date" %} {{ business_date|date:"d M Y" }} · {{ open_folios }} {% trans "open folios" %}
+    </div>
+  </div>
+  <form method="post" action="{% url 'billing:night_audit' %}"
+        onsubmit="return confirm('{% trans "Run the night audit? This posts room charges for every in-house stay and rolls the business date." %}')">
+    {% csrf_token %}
+    <button class="btn btn-ghost btn-sm">{% trans "Run night audit" %}</button>
+  </form>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Charged today" %}</div>
+      <div class="kpi__value">{{ hotel.currency }} {{ revenue_today|floatformat:0 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Payments taken" %}</div>
+      <div class="kpi__value">{{ hotel.currency }} {{ payments_today|floatformat:0 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Outstanding" %}</div>
+      <div class="kpi__value" style="color:{% if outstanding > 0 %}var(--warn){% else %}var(--ok){% endif %}">
+        {{ hotel.currency }} {{ outstanding|floatformat:0 }}
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Invoiced today" %}</div>
+      <div class="kpi__value">{{ hotel.currency }} {{ invoiced_total|floatformat:0 }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="glass-card mb-3">
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <a class="pill {% if scope == 'open' %}pill--ok{% endif %}" href="?scope=open">{% trans "Open" %}</a>
+    <a class="pill {% if scope == 'outstanding' %}pill--ok{% endif %}" href="?scope=outstanding">{% trans "Outstanding" %}</a>
+    <a class="pill {% if scope == 'settled' %}pill--ok{% endif %}" href="?scope=settled">{% trans "Settled" %}</a>
+    <a class="pill {% if scope == 'all' %}pill--ok{% endif %}" href="?scope=all">{% trans "All" %}</a>
+  </div>
+  <form method="get" class="d-flex gap-2">
+    <input type="hidden" name="scope" value="{{ scope }}">
+    <input class="form-control" name="q" value="{{ query }}" style="max-width:320px"
+           placeholder="{% trans 'Folio, booking code or guest…' %}">
+    <button class="btn btn-accent" type="submit">{% trans "Search" %}</button>
+  </form>
+</div>
+
+<div class="glass-card glass-card--flush mb-3">
+  <div style="overflow-x:auto">
+    <table class="table-ashos">
+      <thead>
+        <tr>
+          <th>{% trans "Folio" %}</th><th>{% trans "Guest" %}</th><th>{% trans "Booking" %}</th>
+          <th>{% trans "Charges" %}</th><th>{% trans "Paid" %}</th><th>{% trans "Balance" %}</th>
+          <th>{% trans "Status" %}</th><th>{% trans "Take payment" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for folio in page_obj %}
+        <tr>
+          <td><a href="/admin/billing/folio/{{ folio.pk }}/change/"><code>{{ folio.number }}</code></a></td>
+          <td>{{ folio.guest.full_name }}</td>
+          <td class="text-muted"><code>{{ folio.reservation.code }}</code></td>
+          <td>{{ folio.charges_total|floatformat:0 }}</td>
+          <td class="text-muted">{{ folio.payments_total|floatformat:0 }}</td>
+          <td style="color:{% if folio.balance > 0 %}var(--warn){% else %}var(--ok){% endif %}">
+            <b>{{ folio.balance|floatformat:0 }}</b>
+          </td>
+          <td>
+            {% if folio.status == 'open' %}<span class="pill pill--info">{{ folio.get_status_display }}</span>
+            {% else %}<span class="pill pill--ok">{{ folio.get_status_display }}</span>{% endif %}
+          </td>
+          <td>
+            {% if folio.status == 'open' and folio.balance > 0 %}
+            <form method="post" action="{% url 'billing:take_payment' folio.pk %}" class="d-flex gap-1">
+              {% csrf_token %}
+              {% comment %}
+                The idempotency key is derived from the folio and its current
+                balance, so a double-clicked Pay button records one payment.
+              {% endcomment %}
+              <input type="hidden" name="idempotency_key" value="folio-{{ folio.pk }}-{{ folio.balance }}">
+              <select class="form-select form-select-sm" name="method" style="max-width:120px">
+                {% for value, label in methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+              <input class="form-control form-control-sm" name="amount" style="max-width:110px"
+                     value="{{ folio.balance }}" inputmode="decimal">
+              <button class="btn btn-accent btn-sm">{% trans "Pay" %}</button>
+            </form>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-muted">{% trans "No folios here." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="d-flex justify-content-between align-items-center mb-3" style="font-size:.82rem">
+  <div class="text-muted">{{ page_obj.start_index }}–{{ page_obj.end_index }} / {{ page_obj.paginator.count }}</div>
+  <div class="d-flex gap-2">
+    {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?scope={{ scope }}&q={{ query }}&page={{ page_obj.previous_page_number }}">{% trans "Previous" %}</a>{% endif %}
+    {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?scope={{ scope }}&q={{ query }}&page={{ page_obj.next_page_number }}">{% trans "Next" %}</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="glass-card glass-card--flush">
+  <div class="p-3 pb-0"><div class="card-title-ashos">{% trans "Recent invoices" %}</div></div>
+  <div style="overflow-x:auto">
+    <table class="table-ashos">
+      <thead>
+        <tr><th>{% trans "Number" %}</th><th>{% trans "Guest" %}</th><th>{% trans "Issued" %}</th>
+            <th>{% trans "Total" %}</th><th>{% trans "Paid" %}</th></tr>
+      </thead>
+      <tbody>
+        {% for invoice in invoices %}
+        <tr>
+          <td><a href="/admin/billing/invoice/{{ invoice.pk }}/change/"><code>{{ invoice.number }}</code></a></td>
+          <td>{{ invoice.guest.full_name }}</td>
+          <td class="text-muted">{{ invoice.issued_at|date:"d M Y H:i" }}</td>
+          <td>{{ hotel.currency }} {{ invoice.total|floatformat:0 }}</td>
+          <td>{% if invoice.is_paid %}<span class="pill pill--ok">{% trans "paid" %}</span>
+              {% else %}<span class="pill pill--warn">{{ invoice.balance|floatformat:0 }}</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-muted">{% trans "No invoices issued yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

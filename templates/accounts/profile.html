@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<h1 class="h5 mb-3">{% trans "My profile" %}</h1>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Details" %}</div>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}
+              <div class="text-danger" style="font-size:.78rem">{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endfor %}
+        <button class="btn btn-accent" type="submit">{% trans "Save" %}</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Hotel access" %}</div>
+      {% if memberships %}
+        <table class="table-ashos">
+          <thead><tr><th>{% trans "Hotel" %}</th><th>{% trans "Role" %}</th><th></th></tr></thead>
+          <tbody>
+          {% for m in memberships %}
+            <tr>
+              <td>{{ m.hotel.name }}</td>
+              <td><span class="pill">{{ m.role.name }}</span></td>
+              <td class="text-end">
+                {% if m.is_default %}
+                  <span class="pill pill--ok">{% trans "Default" %}</span>
+                {% else %}
+                  <a class="btn btn-ghost btn-sm" href="{% url 'accounts:switch_hotel' m.hotel.id %}">{% trans "Switch" %}</a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="not-yet">{% trans "No hotel assigned. Ask an administrator for access." %}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

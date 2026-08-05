@@ -1,0 +1,20 @@
+-r base.txt
+
+# --- Test ---------------------------------------------------------------------
+pytest>=8.3,<9.0
+pytest-django>=4.10,<5.0
+pytest-cov>=6.0
+pytest-asyncio>=0.25
+factory-boy>=3.3
+freezegun>=1.5
+
+# --- Lint / type --------------------------------------------------------------
+ruff>=0.9
+black>=25.1
+mypy>=1.15
+django-stubs[compatible-mypy]>=5.1
+djangorestframework-stubs>=3.15
+
+# --- DX -----------------------------------------------------------------------
+django-extensions>=4.1
+ipython>=8.30

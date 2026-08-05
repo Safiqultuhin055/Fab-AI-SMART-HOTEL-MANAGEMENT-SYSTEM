@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% comment %}
+  Shell for a module that has not shipped yet.
+
+  It is not a "coming soon" page: it names the phase, lists exactly what the
+  module will do, and says what it depends on. A user who clicks Housekeeping
+  should leave knowing when it arrives, not wondering whether the app is broken.
+{% endcomment %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h5 mb-1">{{ plan.title|default:page_title }}</h1>
+    <div class="text-muted" style="font-size:.78rem">
+      {% if hotel %}{{ hotel.name }} · {{ hotel.city }}{% endif %}
+    </div>
+  </div>
+  <span class="pill pill--info">{% trans "Arrives in phase" %} {{ plan.phase|default:module_nav.phase }}</span>
+</div>
+
+{% if plan %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="glass-card h-100">
+      <div class="card-title-ashos">{% trans "What this module does" %}</div>
+      <p style="font-size:.9rem; line-height:1.6">{{ plan.summary }}</p>
+
+      <div class="card-title-ashos mt-4">{% trans "Planned capabilities" %}</div>
+      <ul style="font-size:.86rem; line-height:1.9; padding-left:1.1rem; color:var(--text-secondary)">
+        {% for feature in plan.features %}<li>{{ feature }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="glass-card mb-3">
+      <div class="card-title-ashos">{% trans "Status" %}</div>
+      <div class="not-yet mb-3">
+        {% blocktrans with phase=plan.phase %}
+          Not built yet — scheduled for phase {{ phase }}.
+        {% endblocktrans %}
+      </div>
+      <p class="text-muted" style="font-size:.8rem; line-height:1.6">
+        {% trans "No data is shown here because the tables behind this module do not exist yet. Inventing numbers to fill the space would be worse than an empty page." %}
+      </p>
+    </div>
+
+    {% if plan.depends_on %}
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Depends on" %}</div>
+      <ul style="font-size:.84rem; line-height:1.8; padding-left:1.1rem; color:var(--text-secondary)">
+        {% for dep in plan.depends_on %}<li>{{ dep }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="glass-card"><div class="not-yet">{% trans "Module not configured." %}</div></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,2129 @@
+/* ==========================================================================
+   AI Reception kiosk — Prototype.png S2/S3.
+
+   Built to be read from two metres away by someone who has just walked in off
+   the street with a suitcase: large type, one obvious control, high contrast.
+   ========================================================================== */
+
+.kiosk {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .kiosk { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --------------------------------------------------------------------------
+   Stage
+   -------------------------------------------------------------------------- */
+.kiosk-stage {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background:
+    radial-gradient(900px 420px at 30% 0%, rgba(99, 102, 241, 0.28), transparent 65%),
+    radial-gradient(700px 400px at 90% 20%, rgba(34, 211, 238, 0.16), transparent 60%),
+    linear-gradient(180deg, #101a33 0%, #0a1226 100%);
+  min-height: 460px;
+  display: flex;
+  flex-direction: column;
+}
+
+.kiosk-stage__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.kiosk-stage__title {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+/* --------------------------------------------------------------------------
+   The scene
+
+   A lobby photograph behind, a figure to one side, the conversation floating
+   over the top — the shape a guest already knows from a video call, rather than
+   a form. Everything is absolutely positioned inside one aspect-locked box so
+   the composition survives from a 10" desk tablet to a 43" lobby panel.
+   -------------------------------------------------------------------------- */
+.scene {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 430px;
+  /* Wide like the reference, but never so tall it pushes the composer off a
+     short screen. */
+  aspect-ratio: 16 / 9;
+  max-height: 62vh;
+  display: grid;
+  grid-template-columns: minmax(0, 42%) minmax(0, 58%);
+  background:
+    radial-gradient(1200px 500px at 20% 0%, rgba(99, 102, 241, 0.3), transparent 62%),
+    radial-gradient(900px 500px at 85% 30%, rgba(34, 211, 238, 0.16), transparent 58%),
+    linear-gradient(180deg, #121c38 0%, #070c1a 100%);
+}
+
+/* The hotel's own lobby photograph, blurred and dimmed so white text stays
+   readable over whatever they upload — a backdrop nobody has art-directed will
+   otherwise fight the conversation for attention. */
+.scene.has-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: -4%;
+  z-index: -2;
+  background-image: var(--backdrop);
+  background-size: cover;
+  background-position: center;
+  filter: blur(3px) saturate(1.05) brightness(0.5);
+}
+
+.scene.has-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(6, 10, 22, 0.55) 0%, rgba(6, 10, 22, 0.2) 45%, rgba(6, 10, 22, 0.72) 100%),
+    linear-gradient(180deg, rgba(6, 10, 22, 0.35), rgba(6, 10, 22, 0.8));
+}
+
+/* --- Chips (status, hint, controls) --------------------------------------- */
+.scene__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  color: var(--text-primary);
+  /* Glass, so it reads over a photograph as well as over the gradient. */
+  background: rgba(10, 14, 28, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.scene__chip--hint {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.scene__chip--btn {
+  cursor: pointer;
+  font-size: 0.74rem;
+}
+.scene__chip--btn:hover { border-color: rgba(129, 140, 248, 0.5); }
+.scene__chip--btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+.scene__chip--select { cursor: pointer; }
+
+.scene__chip--select select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  padding: 0 2px;
+  cursor: inherit;
+}
+.scene__chip--select select option { color: #101322; background: #eef1f8; }
+
+/* --- The figure ----------------------------------------------------------- */
+.scene__figure {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 12px;
+}
+
+/* Bottom-anchored and cropped, the way a seated person sits in frame. */
+.scene__portrait {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  max-width: 130%;
+  object-fit: contain;
+  object-position: bottom center;
+  filter: drop-shadow(0 24px 50px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+
+/* The bottom 58px belongs to .scene__footer, which is absolutely positioned over
+   this column: the hint chip runs the full width of the scene and was landing on
+   top of the nameplate — "Grand Luxor Hotel / প্রস্তুত" with a chip through it.
+   Measured, not guessed: the chips are 34px on a 14px inset, and the figure itself
+   is position:absolute so only the plate moves. */
+.scene__figure { padding-bottom: 58px; }
+
+.scene__nameplate {
+  position: relative;
+  z-index: 3;
+  /* Clear of the drawn desk, which owns the bottom tenth of the artwork. */
+  margin-bottom: 4%;
+  text-align: center;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(8, 12, 24, 0.55);
+  backdrop-filter: blur(10px);
+}
+
+.scene__nameplate b {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+/* The drawn figure fills the frame the same way an uploaded portrait does, so the
+   nameplate sits over the desk in both cases rather than jumping. */
+.scene__figure:has(.figure) { justify-content: flex-end; }
+
+/* Neither a portrait nor the drawn figure — only reachable if the include is
+   removed. Centre whatever is left instead of leaving it stuck to the floor. */
+.scene__figure:not(:has(.scene__portrait)):not(:has(.figure)) {
+  justify-content: center;
+  gap: 16px;
+}
+.scene__figure:not(:has(.scene__portrait)):not(:has(.figure)) .scene__nameplate {
+  background: none;
+  backdrop-filter: none;
+}
+
+/* --- Conversation side ---------------------------------------------------- */
+.scene__panel {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  /* Not centred: the conversation takes the height and the waveform sits under
+     it. Centring meant a tall empty band above and below three bubbles, and the
+     newest answer clipped by a 40%-tall scroller in the middle of the screen. */
+  justify-content: flex-start;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  /* Top was 54px to clear the AI status badge, which has been removed — nothing
+     sits up there now. Bottom clears the footer chips, which are absolutely
+     positioned over this panel; without it a full-height conversation runs
+     underneath them. Measured, not guessed: the chips are 34px on 14px. */
+  padding: 18px 22px 56px;
+}
+
+.scene__footer {
+  position: absolute;
+  z-index: 4;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scene__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.scene__mic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   The rooms, pictured
+
+   Lives in the scene's own right edge rather than in the rail: it belongs to the
+   sentence being spoken ("the Deluxe has a sea view"), and the rail is for state
+   that outlives the turn — the booking card, the photo consent.
+   -------------------------------------------------------------------------- */
+/* One panel, styled like every other panel on this screen — the same glass as
+   .scene__chip (which is what the design system uses for things floating over the
+   scene) and the same title style as the booking card. It reads as part of the
+   page rather than as a widget that landed on it.
+
+   Top edge on 16px, the same inset the scene's own chips use, so what overlays
+   the scene shares one baseline instead of missing it by 40px. */
+.scene__rooms {
+  position: absolute;
+  z-index: 3;
+  top: 16px;
+  right: 16px;
+  width: 216px;
+  /* Hugs its content like every card on the rail does, and only grows as far as
+     the footer chips. A panel stretched to the full height of the scene with one
+     card in it reads as three cards that failed to load. */
+  max-height: calc(100% - 78px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: rgba(10, 14, 28, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  /* The panel holds still; the list inside it is what scrolls. */
+  overflow: hidden;
+}
+
+.scene__rooms.is-hidden { display: none; }
+
+/* Bubbles are 82% of the panel and would run under the gallery: 216 wide, 16
+   from the edge, 12 of air between. Only paid while it is actually showing. */
+.scene:has(.scene__rooms:not(.is-hidden)) .scene__panel { padding-right: 244px; }
+
+.rooms__head {
+  display: flex;
+  align-items: center;
+  min-height: 16px;
+}
+
+.rooms__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* More types than fit: scroll rather than shrink the photos to thumbnails
+     nobody can read a room from. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* Inside a panel that already carries the glass, so these are surfaces on it,
+   not a second stack of floating cards. */
+.room-card {
+  /* Never shrink. A flex column with four cards in less space than they need
+     squeezes every one of them, and overflow:hidden then eats the name and the
+     facts underneath the photo — four unlabelled photographs. The list scrolls
+     instead. */
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  animation: room-in 0.28s ease both;
+}
+
+/* The one they chose, so a gallery of four does not leave the guest guessing
+   which card the conversation is about. Border and a soft ring rather than a
+   drop shadow — a shadow inside a glass panel reads as a card lifting off it. */
+.room-card.is-chosen {
+  border-color: rgba(129, 140, 248, 0.7);
+  box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.35);
+}
+
+.room-card__photo {
+  display: block;
+  width: 100%;
+  /* 16/9, like the photo in the bubble and like the backdrop behind it. Three
+     different crops of the same room on one screen looks like three rooms. */
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* No upload yet. A labelled tile, never a stock photograph. */
+.room-card__blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  padding: 8px;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background:
+    radial-gradient(120px 80px at 50% 0%, rgba(99, 102, 241, 0.28), transparent 70%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.room-card__body {
+  padding: 8px 10px 10px;
+}
+
+.room-card__name {
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.room-card__meta {
+  margin-top: 2px;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.room-card__caption {
+  padding: 0 10px;
+  font-size: 0.66rem;
+  color: var(--text-secondary);
+}
+
+/* More photos of the same type, under the lead one. */
+.room-card__strip {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px 8px;
+}
+
+.room-card__strip img {
+  width: 38px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+  cursor: pointer;
+  opacity: 0.72;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.room-card__strip img:hover,
+.room-card__strip img.is-active { opacity: 1; border-color: rgba(129, 140, 248, 0.7); }
+
+@keyframes room-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-card { animation: none; }
+}
+
+@media (max-width: 900px) {
+  /* The figure is decoration; the conversation is the product. Below this the
+     portrait becomes a faint backdrop and the panel takes the whole width. */
+  .scene {
+    grid-template-columns: minmax(0, 1fr);
+    aspect-ratio: auto;
+    max-height: none;
+  }
+  .scene__figure { position: absolute; inset: 0; opacity: 0.25; padding: 0; }
+  .scene__figure .scene__nameplate { display: none; }
+  .scene__panel { padding: 62px 16px 76px; }
+
+  /* No room for a column beside the conversation, so the gallery becomes a
+     horizontal strip under it — full width, no panel chrome, because at this
+     size the chrome is most of what is on screen. */
+  .scene:has(.scene__rooms:not(.is-hidden)) .scene__panel { padding-right: 16px; }
+  .scene__rooms {
+    position: static;
+    width: auto;
+    /* Clear of the footer chips, which stay pinned to the bottom of the scene at
+       this size and would otherwise sit on top of the cards. */
+    margin: 0 16px 56px;
+    padding: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    overflow: visible;
+  }
+  .rooms__list {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .room-card { flex: 0 0 168px; }
+}
+
+/* --------------------------------------------------------------------------
+   Conversation
+   -------------------------------------------------------------------------- */
+.kiosk-convo {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.kiosk-bubbles {
+  /* All the room there is. min-height:0 is what actually lets a flex child
+     scroll: without it the item refuses to shrink below its content and the
+     overflow lands on the page instead of inside the box. */
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Conversation grows from the bottom, like every messaging app: two bubbles sit
+   at the bottom of the panel rather than stranded at the top of a tall empty
+   box. margin-top:auto on the first child rather than justify-content:flex-end
+   on the container — that one makes overflowing content unreachable above the
+   scroll origin in Firefox. */
+.kiosk-bubbles > :first-child { margin-top: auto; }
+
+/* Floating over a photograph rather than sitting on a card, so the AI bubble
+   carries its own shadow and a tail — the reference reads as speech, not as a
+   log line. */
+.scene .bubble--ai {
+  position: relative;
+  background: rgba(248, 250, 255, 0.94);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  border-bottom-left-radius: 16px;
+}
+
+.scene .bubble--ai::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 18px;
+  width: 14px;
+  height: 14px;
+  background: inherit;
+  clip-path: polygon(100% 0, 100% 100%, 0 50%);
+}
+
+.scene .bubble--guest { box-shadow: 0 12px 30px rgba(99, 102, 241, 0.4); }
+
+.bubble {
+  max-width: 82%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble--ai {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  border-bottom-left-radius: 4px;
+}
+
+.bubble--guest {
+  align-self: flex-end;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble--system {
+  align-self: center;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--warn);
+  font-size: 0.82rem;
+  max-width: 100%;
+}
+
+/* The room, inside the answer that talks about it.
+   Capped in height because a bubble is a sentence with a picture in it, not a
+   gallery — at full aspect it pushes the words it belongs to off a short lobby
+   screen. */
+.bubble__photo {
+  display: block;
+  width: 100%;
+  max-height: 168px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+/* .bubble__cites is gone with the citation footer it styled. The numbers in it
+   indexed the CONTEXT block the server assembles for the model — our bookkeeping,
+   not information a guest can use. They are still stored on the Message for whoever
+   has to audit an answer later. */
+
+.bubble__typing span {
+  display: inline-block;
+  width: 7px; height: 7px; margin-right: 4px;
+  border-radius: 50%;
+  background: #64748b;
+  animation: typing 1.2s infinite;
+}
+.bubble__typing span:nth-child(2) { animation-delay: 0.2s; }
+.bubble__typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30%           { opacity: 1; transform: translateY(-3px); }
+}
+
+/* --------------------------------------------------------------------------
+   Waveform + mic
+   -------------------------------------------------------------------------- */
+.kiosk-voice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 48px;
+  width: 100%;
+  max-width: 420px;
+}
+
+/* Magenta at the edges through cyan in the middle. The colour is positional, not
+   per-bar, so the strip reads as one instrument rather than 48 separate lights —
+   done with a background-clip trick because each bar is its own element. */
+.waveform__bar {
+  width: 4px;
+  min-height: 4px;
+  border-radius: 2px;
+  background-image: linear-gradient(90deg, #e879f9 0%, #22d3ee 50%, #e879f9 100%);
+  background-size: 420px 100%;
+  background-attachment: fixed;
+  opacity: 0.4;
+  transition: height 0.08s linear, opacity 0.2s ease;
+}
+
+.waveform.is-live .waveform__bar {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.55));
+}
+
+/* Concentric ring, like the reference: a lit halo around a solid core. Built from
+   the element's own box-shadow so the ring animates with state (armed breathes,
+   hearing blinks) without a second DOM node to keep in sync. */
+.mic-button {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.35), transparent 55%),
+    linear-gradient(135deg, #8b5cf6 0%, #6366f1 45%, #22d3ee 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 0 0 7px rgba(99, 102, 241, 0.14),
+    0 14px 38px rgba(99, 102, 241, 0.5);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.mic-button::after {
+  /* The bright outer ring. Separate from the shadow so it can hold a gradient. */
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  padding: 2px;
+  background: linear-gradient(135deg, #e879f9, #22d3ee);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.9;
+}
+
+.mic-button:hover { transform: scale(1.05); }
+.mic-button.is-recording {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.18), 0 12px 34px rgba(239, 68, 68, 0.45);
+  animation: mic-pulse 1.4s ease-in-out infinite;
+}
+.mic-button[disabled] {
+  background: var(--bg-surface-hover);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.16); }
+  50%      { box-shadow: 0 0 0 16px rgba(239, 68, 68, 0.05); }
+}
+
+.mic-hint {
+  font-size: 0.82rem;
+  font-weight: 550;
+  color: var(--text-primary);
+  text-align: center;
+  /* Fixed height: the hint changes on every state, and a line of text that
+     appears and disappears makes the mic button jump under the guest's finger. */
+  min-height: 1.2em;
+}
+
+/* --------------------------------------------------------------------------
+   Composer
+   -------------------------------------------------------------------------- */
+.kiosk-composer {
+  display: flex;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.kiosk-composer input {
+  flex: 1 1 auto;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+}
+.kiosk-composer input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* --------------------------------------------------------------------------
+   Action tiles
+   -------------------------------------------------------------------------- */
+.kiosk-tiles {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 18px 18px;
+}
+
+@media (max-width: 780px) {
+  .kiosk-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.tile {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 14px 10px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+.tile:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.tile[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+.tile__icon {
+  width: 40px; height: 40px; margin: 0 auto 8px;
+  border-radius: 12px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  font-size: 1.1rem;
+}
+.tile__label { font-size: 0.82rem; font-weight: 600; }
+.tile__sub { font-size: 0.68rem; color: var(--text-muted); }
+
+/* --------------------------------------------------------------------------
+   Vision rail
+   -------------------------------------------------------------------------- */
+.vision-card { margin-bottom: 12px; }
+
+/* --------------------------------------------------------------------------
+   Booking progress
+
+   Four steps with a rail running through them. A guest being asked a fifth
+   question can see it is the last one, rather than wondering how long this goes
+   on for.
+   -------------------------------------------------------------------------- */
+.progress-steps {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 0;
+  position: relative;
+}
+
+/* The rail, behind the dots, between the first and the last. */
+.progress-steps::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: var(--border-subtle);
+}
+
+.progress-step {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.progress-step__dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--bg-canvas);
+  border: 2px solid var(--border-strong);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.progress-step.is-done { color: var(--text-secondary); }
+.progress-step.is-done .progress-step__dot {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+/* The one being asked for right now, so the guest's eye lands on it. */
+.progress-step.is-current { color: var(--text-primary); font-weight: 600; }
+.progress-step.is-current .progress-step__dot {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.22);
+}
+
+/* Booking draft. Two columns so the guest can check it at a glance from
+   standing distance — this is read across a desk, not on a phone. */
+.booking-draft {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.booking-draft dt {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.booking-draft dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.booking-draft__total {
+  font-weight: 700;
+  color: var(--ok);
+}
+
+.booking-draft__note {
+  margin: 10px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--warn);
+}
+
+.vision-card__frame {
+  position: relative;
+  height: 110px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px dashed var(--border-strong);
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  text-align: center;
+  padding: 10px;
+}
+
+.vision-card__frame.is-enabled {
+  border-style: solid;
+  border-color: rgba(34, 197, 94, 0.45);
+  color: var(--ok);
+}
+
+/* Actively watching for someone at the kiosk. */
+.vision-card__frame.is-watching {
+  border-style: solid;
+  border-color: rgba(56, 189, 248, 0.45);
+  color: var(--info);
+  padding: 0;
+  overflow: hidden;
+  height: 150px;
+}
+
+.vision-cam {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  /* Mirrored: a guest looking at themselves expects a mirror, not a camera. */
+  transform: scaleX(-1);
+}
+
+.vision-cam__status {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 5px 8px;
+  font-size: 0.68rem;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text-primary);
+}
+
+.d-none { display: none !important; }
+.is-hidden { display: none !important; }
+
+/* --------------------------------------------------------------------------
+   Device bar — camera / microphone / speaker chips
+   Pills rather than a settings panel: this is glanced at, not filled in, and
+   three plain <select>s in a row read as a form nobody asked for.
+   -------------------------------------------------------------------------- */
+.device-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* Takes the slack in the header row so the title stays left and the status
+     pills stay right, whatever the device names turn out to be. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.device-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Device names are long ("Microphone Array (Intel(R) Smart Sound Technology
+     for Digital Microphones)") and there are three of them in a header row, so
+     each is capped and ellipsised rather than allowed to push the row apart. */
+  max-width: 11rem;
+  min-width: 0;
+  padding: 5px 10px;
+  margin: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.device-chip:hover { border-color: rgba(129, 140, 248, 0.45); }
+
+/* Nothing of that kind is plugged in. Still shown, so the absence is visible. */
+.device-chip.is-empty { opacity: 0.45; cursor: default; }
+
+.device-chip__icon { font-size: 0.82rem; line-height: 1; }
+
+.device-chip select {
+  /* Strip the native control: the pill IS the control. Without all three of
+     appearance/-webkit/-moz the browser keeps its own white box and arrow, which
+     is what a stale stylesheet looks like. */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  cursor: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.device-chip select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* The option list is drawn by the OS, which does not inherit the dark theme. */
+.device-chip select option { color: #101322; background: #eef1f8; }
+
+/* Three lines of small print across the top of a lobby screen is noise. The
+   caveats are the bar's tooltip; #device-note carries the same words for a
+   screen reader and is visually hidden by Bootstrap's utility. */
+
+/* The header wraps on a narrow terminal; keep the bar full-width when it does
+   so the chips do not end up squeezed against the status pills. */
+@media (max-width: 900px) {
+  .kiosk-stage__header { flex-wrap: wrap; }
+  .device-bar { order: 3; flex-basis: 100%; justify-content: flex-start; }
+  .device-chip { max-width: 100%; }
+}
+
+/* --------------------------------------------------------------------------
+   Post-booking photo capture
+   A phone-shaped panel with a square window. Portrait reads as "stand here and
+   look at me"; a full-width video reads as surveillance. Shown as an overlay
+   over the conversation, never as the entry screen — the assistant greets
+   first, and a camera only opens after the guest has said yes.
+   -------------------------------------------------------------------------- */
+.capture-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  /* Blur rather than replace: the guest can still see they are mid-conversation,
+     so the consent screen reads as a question, not a new demand. */
+  background: rgba(4, 7, 15, 0.78);
+  backdrop-filter: blur(10px);
+  overflow-y: auto;
+}
+
+.enrol-consent { text-align: left; }
+
+.enrol-consent__body {
+  margin: 12px 0 14px;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+.enrol-consent__list {
+  margin: 0 0 20px;
+  padding-left: 20px;
+  font-size: 0.84rem;
+  line-height: 1.75;
+}
+
+.enrol-consent__actions {
+  display: grid;
+  gap: 10px;
+}
+
+/* Both buttons full width and the same size. Making "no" smaller or greyer is
+   how a consent screen becomes a dark pattern. */
+.enrol-consent__actions .btn { width: 100%; padding: 12px 16px; font-size: 0.95rem; }
+
+.enrol-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.enrol-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.enrol-dot.is-done {
+  background: var(--ok);
+  transform: scale(1.15);
+}
+
+.capture-phone {
+  width: min(94vw, 380px);
+  border-radius: 34px;
+  padding: 26px 22px 22px;
+  position: relative;
+  background:
+    radial-gradient(600px 300px at 50% -10%, rgba(99, 102, 241, 0.25), transparent 60%),
+    linear-gradient(180deg, #121a30 0%, #080d1c 100%);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  text-align: center;
+}
+
+.capture-phone__notch {
+  width: 92px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  margin: 0 auto 20px;
+}
+
+/* Square on purpose: it frames a face without implying a full-body camera. */
+.capture-window {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #05080f;
+  border: 1px solid rgba(129, 140, 248, 0.28);
+}
+
+.capture-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Mirrored — a guest expects a mirror, not a camera feed. */
+  transform: scaleX(-1);
+}
+
+/* Corner brackets */
+.capture-corner {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--accent-strong);
+  opacity: 0.9;
+}
+.capture-corner--tl { top: 12px; left: 12px; border-right: 0; border-bottom: 0; border-radius: 14px 0 0 0; }
+.capture-corner--tr { top: 12px; right: 12px; border-left: 0; border-bottom: 0; border-radius: 0 14px 0 0; }
+.capture-corner--bl { bottom: 12px; left: 12px; border-right: 0; border-top: 0; border-radius: 0 0 0 14px; }
+.capture-corner--br { bottom: 12px; right: 12px; border-left: 0; border-top: 0; border-radius: 0 0 14px 0; }
+
+/* Scanning line — the only animation, and it stops once the still is taken so
+   a frozen photo never looks like a live feed. */
+.capture-scanline {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent-strong), transparent);
+  box-shadow: 0 0 22px 6px rgba(129, 140, 248, 0.45);
+  animation: capture-scan 2.4s ease-in-out infinite;
+}
+
+@keyframes capture-scan {
+  0%, 100% { top: 12%; opacity: 0.35; }
+  50%      { top: 86%; opacity: 1; }
+}
+
+.capture-window.is-captured .capture-scanline { display: none; }
+.capture-window.is-captured .capture-corner { border-color: var(--ok); }
+.capture-window.is-detecting .capture-corner { border-color: #22d3ee; }
+
+/* One white blink at the moment of capture, so the guest knows a photo was
+   taken. A silent camera is the unsettling kind. */
+.capture-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+.capture-flash.is-firing { animation: capture-flash 0.45s ease-out; }
+
+@keyframes capture-flash {
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+.capture-caption { margin-top: 20px; }
+
+.capture-title {
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  min-height: 1.4em;
+}
+
+.capture-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  min-height: 1.2em;
+}
+
+.capture-skip { margin-top: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .capture-scanline { animation: none; top: 50%; }
+}
+
+/* Corner brackets, as in the prototype's face-detection frame. */
+.vision-card__frame::before,
+.vision-card__frame::after {
+  content: "";
+  position: absolute;
+  width: 18px; height: 18px;
+  border: 2px solid currentColor;
+  opacity: 0.5;
+}
+.vision-card__frame::before { top: 8px; left: 8px; border-right: 0; border-bottom: 0; }
+.vision-card__frame::after { bottom: 8px; right: 8px; border-left: 0; border-top: 0; }
+
+/* --------------------------------------------------------------------------
+   Full-screen kiosk mode
+   -------------------------------------------------------------------------- */
+body.kiosk-mode { overflow: hidden; }
+
+/* Exactly the viewport, not "at least" it. With min-height alone the stage grew
+   past the bottom of the screen once the conversation took its full height, and
+   body{overflow:hidden} then cut the composer and the tiles off entirely — the
+   guest could read the answer and had nothing left to type into. */
+.kiosk-fullscreen {
+  height: 100vh;
+  /* No padding at the top: the header is the top of the screen. 18px of gap
+     above a header is 18px stolen from the conversation, and on a wall-mounted
+     panel it reads as a page that failed to load its top bar. */
+  padding: 0 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   Header
+
+   Everything that identifies the machine and its state, in one bar: the hotel,
+   the devices this terminal uses, the model answering, the time. The
+   conversation owns everything below it.
+
+   Always visible without position:fixed — nothing on this page scrolls. The
+   shell is exactly 100vh and the only overflow is inside the bubbles.
+   -------------------------------------------------------------------------- */
+.kiosk-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+  margin: 0 -16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(9, 13, 26, 0.72);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+}
+
+.kiosk-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.kiosk-header__logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.kiosk-header__logo--mark {
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+}
+
+.kiosk-header__names { display: flex; flex-direction: column; min-width: 0; }
+
+.kiosk-header__hotel {
+  font-size: 1.15rem;
+  font-weight: 680;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kiosk-header__sub {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+/* The device bar sits in the middle and takes the slack, so the clock stays
+   pinned to the right edge whatever the hotel is called. */
+.kiosk-header .device-bar {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.kiosk-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: 0 0 auto;
+}
+
+.kiosk-header__model {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Time large enough to read from across a lobby, date under it. */
+.kiosk-header__clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+}
+
+.kiosk-header__clock b { font-size: 1.35rem; font-weight: 680; }
+.kiosk-header__clock span { font-size: 0.74rem; color: var(--text-secondary); }
+
+/* The height has to be handed down every step, and there are four of them:
+
+     .kiosk-fullscreen  (flex column, exactly 100vh)
+       #assistant-stage (a plain div — the chain broke here, so everything below
+                         it stood at its content height and pushed the composer
+                         off the bottom of the screen)
+         .kiosk         (grid, and align-items:start meant the row was as tall as
+                         its content rather than as tall as the space)
+           .kiosk-stage
+             .scene
+
+   Every one of them needs min-height:0 as well: a flex or grid item refuses to
+   shrink below its content by default, and one that refuses is enough to break
+   the chain again. */
+.kiosk-fullscreen #assistant-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.kiosk-mode .kiosk {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.kiosk-mode .kiosk-stage { min-height: 0; }
+
+/* The rail is the one part that may be taller than the screen — three vision
+   cards and a booking card — so it scrolls on its own rather than stretching the
+   page. */
+.kiosk-mode .kiosk-rail {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* Clearance for the footer chips, which are absolutely positioned over this
+   column — the language, voice, mute and turn-count row along the bottom of the
+   scene.
+   It was cut to 12px when the dock moved into the flow, on the reasoning that a
+   dock which no longer floats needs no clearance. The chips still float, so what
+   the dock stopped colliding with by moving, it started colliding with by
+   growing: the microphone's own hint ("বলুন, আমি শুনছি") ran underneath the
+   language chip and came out as "বলু" with a chip through it.
+   48px of chip on a 14px inset, so 56 — measured, not guessed. */
+.kiosk-mode .scene__panel { padding-bottom: 56px; }
+
+/* The stage fills what the topline leaves, and the scene fills what the composer
+   and the tiles leave inside it. Fixed heights here were the reason the
+   conversation was a 300px window on a 1080p lobby panel. */
+.kiosk-fullscreen .kiosk-stage {
+  flex: 1 1 auto;
+  /* Both needed: min-height:0 lets the stage shrink to the space it was given
+     instead of standing at its content height, and the base rule's 460px floor
+     would otherwise push the bottom of the page off a short screen. */
+  min-height: 0;
+}
+
+.kiosk-mode .scene {
+  /* More of the width to the conversation. The figure is decoration and it was
+     holding 42% of a 1920 screen; the answers are what the guest came for. */
+  grid-template-columns: minmax(0, 34%) minmax(0, 66%);
+  flex: 1 1 auto;
+  /* Same reason, one level down: the scene must be able to give height back to
+     the composer, which is the one control the guest cannot do without. */
+  min-height: 0;
+  /* The 16/9 lock is a composition rule for the console's embedded widget. On a
+     terminal the screen is the composition. */
+  aspect-ratio: auto;
+  max-height: none;
+}
+
+.kiosk-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Hands-free microphone states
+
+   Three distinguishable looks, because they mean different things to a guest:
+
+     is-recording   the microphone is open
+     is-armed       open and waiting, hands-free — a slow breath, so a terminal
+                    nobody is using does not strobe at the lobby all day
+     is-hearing     it is picking up a voice RIGHT NOW — the fast blink
+
+   Only the last one blinks. A microphone that looks busy the whole time tells
+   the guest nothing; one that reacts to their voice tells them they are heard.
+   -------------------------------------------------------------------------- */
+.mic-button.is-armed {
+  background: linear-gradient(135deg, #22d3ee, #6366f1);
+  animation: mic-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes mic-breathe {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.16), 0 12px 34px rgba(34, 211, 238, 0.35); }
+  50%      { box-shadow: 0 0 0 14px rgba(34, 211, 238, 0.06), 0 12px 34px rgba(34, 211, 238, 0.5); }
+}
+
+.mic-button.is-hearing {
+  animation: mic-blink 0.75s steps(1, end) infinite;
+}
+
+@keyframes mic-blink {
+  0%, 49%   { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.45), 0 12px 34px rgba(34, 197, 94, 0.55); }
+  50%, 100% { box-shadow: 0 0 0 18px rgba(34, 197, 94, 0.04), 0 12px 34px rgba(34, 197, 94, 0.2); }
+}
+
+/* Somebody who has asked for less motion still needs to know it is listening, so
+   the state is carried by colour rather than removed. */
+@media (prefers-reduced-motion: reduce) {
+  .mic-button.is-armed,
+  .mic-button.is-hearing { animation: none; }
+  .mic-button.is-hearing { background: linear-gradient(135deg, #22c55e, #16a34a); }
+}
+
+/* --------------------------------------------------------------------------
+   The drawn receptionist
+
+   Original artwork in templates/reception/_kiosk_avatar.html, animated entirely
+   from here so the figure needs no JavaScript and follows the same state machine
+   as everything else: #kiosk-avatar[data-state] is set once by setState().
+
+   The motion is deliberately small. A still figure reads as a poster and nobody
+   talks to a poster, but a lobby panel that animates hard is exhausting to stand
+   in front of — so: breathing, blinking, a slight sway, and a mouth that moves
+   only while an answer is genuinely being spoken.
+   -------------------------------------------------------------------------- */
+.figure {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  max-width: 132%;
+  /* Everything inside scales about its own box, so a part can be animated without
+     first working out where it sits in the 300x400 viewBox. */
+  overflow: visible;
+  pointer-events: none;
+}
+
+.figure * { transform-box: fill-box; }
+
+.figure__halo {
+  transform-origin: center;
+  animation: figure-halo 6s ease-in-out infinite;
+}
+
+@keyframes figure-halo {
+  0%, 100% { opacity: .55; transform: scale(1); }
+  50%      { opacity: .85; transform: scale(1.04); }
+}
+
+/* Breathing. Anchored at the bottom so the shoulders rise and the desk does not. */
+.figure__body {
+  transform-origin: bottom center;
+  animation: figure-breathe 4.4s ease-in-out infinite;
+}
+
+@keyframes figure-breathe {
+  0%, 100% { transform: scaleY(1) translateY(0); }
+  50%      { transform: scaleY(1.009) translateY(-1.5px); }
+}
+
+.figure__head {
+  transform-origin: center bottom;
+  animation: figure-sway 9s ease-in-out infinite;
+}
+
+@keyframes figure-sway {
+  0%, 100% { transform: rotate(-0.9deg) translateY(0); }
+  50%      { transform: rotate(0.9deg) translateY(-1px); }
+}
+
+/* Blinking. Two lids scaled to nothing and snapped shut — steadier and far
+   cheaper than morphing a path, and the pause between blinks is most of the
+   timeline so it does not look nervous. */
+.figure__lid {
+  transform-origin: center;
+  transform: scaleY(0);
+  animation: figure-blink 6.4s infinite;
+}
+
+.figure__eye:last-child .figure__lid {
+  /* A hair's delay, because two perfectly synchronised eyelids look mechanical. */
+  animation-delay: .04s;
+}
+
+@keyframes figure-blink {
+  0%, 95.5%, 100% { transform: scaleY(0); }
+  96.5%, 98%      { transform: scaleY(1); }
+}
+
+/* Mouth: closed lips by default, the open shape hidden behind them. */
+.figure__mouth-open {
+  transform-origin: center top;
+  transform: scaleY(0);
+  opacity: 0;
+}
+
+/* --- State: listening ------------------------------------------------------
+   Head tilts in and holds. A person who is listening leans; that is the whole
+   signal, and it costs no text on screen. */
+[data-state="listening"] .figure__head {
+  animation: figure-lean 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes figure-lean {
+  from { transform: rotate(-2.6deg) translateY(-1px); }
+  to   { transform: rotate(-1.2deg) translateY(0); }
+}
+
+[data-state="listening"] .figure__halo { animation-duration: 2.2s; }
+
+/* --- State: thinking ------------------------------------------------------- */
+[data-state="thinking"] .figure__iris {
+  animation: figure-glance 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes figure-glance {
+  from { transform: translate(-1.4px, -1.8px); }
+  to   { transform: translate(1.4px, -.6px); }
+}
+
+[data-state="thinking"] .figure__brow {
+  transform: translateY(-1.5px);
+  transition: transform .3s ease;
+}
+
+/* --- State: speaking ------------------------------------------------------- */
+[data-state="speaking"] .figure__mouth-open {
+  opacity: 1;
+  animation: figure-talk .26s steps(2, jump-none) infinite alternate;
+}
+
+[data-state="speaking"] .figure__lips { opacity: .35; }
+
+@keyframes figure-talk {
+  from { transform: scaleY(.28); }
+  to   { transform: scaleY(1); }
+}
+
+[data-state="speaking"] .figure__head {
+  animation: figure-sway 3.4s ease-in-out infinite;
+}
+
+/* --- Nothing is moving ----------------------------------------------------- */
+[data-state="offline"] .figure__halo { animation: none; opacity: .25; }
+[data-state="offline"] .figure__body { animation-duration: 7s; }
+
+/* Somebody who asked for less motion gets a still, complete figure — not a
+   broken one. The mouth stays shut and the eyes stay open. */
+@media (prefers-reduced-motion: reduce) {
+  .figure__halo,
+  .figure__body,
+  .figure__head,
+  .figure__lid,
+  .figure__iris,
+  .figure__mouth-open { animation: none !important; }
+  .figure__lid { transform: scaleY(0); }
+  .figure__mouth-open { opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
+   The microphone dock
+
+   Fixed on the lobby terminal. A guest talking to a kiosk needs to see that it
+   is listening at all times, and a control that scrolls away, hides behind a
+   long conversation, or falls off a short screen reads as one that has stopped
+   working — which is the worst possible misreading for the only always-on part
+   of the product.
+
+   Only in kiosk mode. A floating dock over the staff console's dashboard would
+   be an overlay nobody asked for, so there it stays in the flow.
+   -------------------------------------------------------------------------- */
+.kiosk-mode .mic-dock {
+  /* In the flow, directly under the waveform it belongs to.
+     It used to be position:fixed, "so it cannot be scrolled away or covered by a
+     long conversation" — a real problem, and one that no longer exists: the page
+     does not scroll at all now and the conversation is a bounded scroller. What
+     floating cost instead was collisions, one per attempt: at bottom:22px it
+     covered the Restaurant card outright, at 190px it sat on the text input, and
+     anchored to the scene it landed on the language and voice chips. A control
+     that lands on another control is worse than one that scrolls. */
+  position: static;
+  transform: none;
+  align-self: center;
+  z-index: 70;
+  padding: 10px 20px 8px;
+  border-radius: 26px;
+  /* Its own glass panel: the dock sits over whatever the scene is doing, so it
+     cannot rely on the background behind it for contrast. */
+  background: rgba(8, 12, 24, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+
+/* Room for the dock, so it never covers the composer or the last answer. */
+/* The 92px strip under the composer existed to keep the dock off the tiles. The
+   dock has moved above the composer, so that height goes back to the
+   conversation. */
+.kiosk-mode .kiosk-composer { margin-bottom: 12px; }
+
+/* --------------------------------------------------------------------------
+   Quick actions, on the terminal
+
+   A finger on a wall panel, not a mouse: the whole card is the target, the icon
+   is readable from a step back, and the press is visible because a touch screen
+   gives no other feedback that it registered.
+   -------------------------------------------------------------------------- */
+.kiosk-mode .kiosk-tiles { gap: 12px; }
+
+.kiosk-mode .tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* 96px of card. Below about 80 a finger starts hitting two of them. */
+  min-height: 96px;
+  padding: 14px 12px;
+  border-radius: var(--radius);
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.kiosk-mode .tile:hover {
+  transform: translateY(-3px);
+  border-color: rgba(129, 140, 248, 0.55);
+  background: rgba(129, 140, 248, 0.1);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* The press. On a touch screen :hover is whatever was tapped last, so the state
+   that actually confirms the tap is :active. */
+.kiosk-mode .tile:active {
+  transform: translateY(0) scale(0.97);
+  background: rgba(129, 140, 248, 0.18);
+}
+
+.kiosk-mode .tile__icon { font-size: 1.7rem; line-height: 1; }
+.kiosk-mode .tile__label { font-size: 0.95rem; font-weight: 620; }
+.kiosk-mode .tile__sub { display: block; font-size: 0.72rem; color: var(--text-secondary); }
+
+/* Seven cards in a 320px column: the empty frame states shrink so the ones with
+   something to say are not pushed below the fold. */
+.kiosk-mode .vision-card__frame { height: 68px; }
+.kiosk-mode .vision-card__frame.is-watching { height: 132px; }
+.kiosk-mode .vision-card { margin-bottom: 10px; }
+.kiosk-mode .kiosk-rail .glass-card { padding: 14px; }
+
+@media (max-height: 900px) {
+  /* A 13" laptop running the lobby page. The cards give height back before the
+     conversation does. */
+  .kiosk-mode .tile { min-height: 72px; padding: 10px; }
+  .kiosk-mode .tile__icon { font-size: 1.3rem; }
+  .kiosk-mode .tile__label { font-size: 0.82rem; }
+  .kiosk-mode .tile__sub { display: none; }
+}
+
+/* The capture overlay owns the screen while it is up; a floating microphone over
+   a consent screen is a second thing competing for the same tap. */
+.kiosk-mode .capture-stage:not(.is-hidden) ~ * .mic-dock,
+.kiosk-mode .capture-stage:not(.is-hidden) .mic-dock { display: none; }
+
+@media (max-width: 900px) {
+  .kiosk-mode .mic-dock { bottom: 150px; padding: 10px 18px 8px; }
+}
+
+/* ==========================================================================
+   Public online booking (/book/?hotel=CODE)
+
+   The lobby terminal's clothes on a page a guest opens at home: same dark
+   screen, same glass, same accent. It is the same product talking to the same
+   person, one of them standing in the lobby and one of them on a sofa.
+
+   Three panels across, not three steps behind each other — a guest asks all
+   three questions at once: can I have it, what does it cost, what do I show at
+   the desk.
+   ========================================================================== */
+body.booking-mode {
+  min-height: 100vh;
+  background:
+    radial-gradient(1100px 500px at 12% -8%, rgba(99, 102, 241, 0.2), transparent 60%),
+    radial-gradient(900px 500px at 88% 0%, rgba(34, 211, 238, 0.12), transparent 58%),
+    var(--bg-root);
+}
+
+.online-shell {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 18px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.online-shell .kiosk-header { margin: 0 -18px 4px; }
+
+/* The terminal's header has a device bar in the middle taking the slack. This one
+   does not, so the meta group has to claim the right edge itself — without it the
+   city sits jammed against the hotel's name. */
+.online-shell .kiosk-header__meta { margin-left: auto; }
+
+.online-error {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: var(--text-primary);
+  font-size: 0.86rem;
+}
+
+/* Booking wider than the other two: it holds the search, the room list and the
+   guest form, and the other two are read rather than filled in. */
+.online-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .online-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.online-panel { display: flex; flex-direction: column; gap: 14px; }
+
+.online-panel__head { display: flex; align-items: flex-start; gap: 12px; }
+
+/* The number is the alignment: one, two, three, left to right, so the three
+   panels read as one flow rather than three unrelated cards. */
+.online-step {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+}
+
+.online-panel__hint {
+  margin: 4px 0 0;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+/* --- The search ---------------------------------------------------------- */
+.online-search {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.online-search .btn { height: 42px; }
+
+.online-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+
+.online-field > span {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.online-field > span i { font-style: normal; color: var(--text-muted); }
+
+.online-field input {
+  height: 42px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.online-field input:focus {
+  outline: none;
+  border-color: rgba(129, 140, 248, 0.6);
+  background: rgba(129, 140, 248, 0.08);
+}
+
+/* Chrome's date and number widgets default to a light popup and dark-on-dark
+   text; both need saying explicitly on a dark form. */
+.online-field input[type="date"],
+.online-field input[type="number"] { color-scheme: dark; }
+
+/* --- The rooms ----------------------------------------------------------- */
+.online-rooms { display: flex; flex-direction: column; gap: 10px; }
+
+.online-room {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.online-room:hover {
+  transform: translateY(-2px);
+  border-color: rgba(129, 140, 248, 0.5);
+  background: rgba(129, 140, 248, 0.08);
+}
+
+/* The one whose bill is showing beside it. Without this the middle panel looks
+   like it belongs to nothing. */
+.online-room.is-chosen {
+  border-color: rgba(129, 140, 248, 0.75);
+  background: rgba(129, 140, 248, 0.12);
+  box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.35);
+}
+
+.online-room__photo {
+  width: 120px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+
+.online-room__photo--blank {
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.online-room__body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.online-room__name { font-size: 0.95rem; }
+.online-room__meta { font-size: 0.74rem; color: var(--text-secondary); }
+
+.online-room__price { text-align: right; padding-right: 6px; }
+.online-room__price b { display: block; font-size: 1.05rem; }
+.online-room__price span { font-size: 0.68rem; color: var(--text-secondary); }
+
+/* --- The guest form ------------------------------------------------------ */
+.online-guest {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.online-guest > .card-title-ashos,
+.online-guest > .btn,
+.online-guest > .online-panel__hint,
+.online-field--wide { grid-column: 1 / -1; }
+
+/* --- The bill and the slip ----------------------------------------------- */
+.online-bill {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.online-bill dt { color: var(--text-secondary); font-weight: 500; }
+.online-bill dd { margin: 0; text-align: right; }
+
+/* Night-by-night lines are supporting detail, not the answer. */
+.online-bill__night { font-size: 0.74rem; color: var(--text-muted); }
+
+.online-bill__total {
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 1rem;
+  font-weight: 680;
+  color: var(--text-primary);
+}
+
+.online-slip {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border-strong);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.online-slip__ref {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.online-slip__ref span { font-size: 0.72rem; color: var(--text-secondary); }
+
+/* The reference is the one thing on this page a guest reads out loud at a desk,
+   and monospace is what stops O and 0 being the same character. */
+.online-slip__ref b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.4rem;
+  letter-spacing: 0.08em;
+}
+
+.online-slip__folio { display: flex; flex-direction: column; gap: 6px; }
+
+.online-slip__line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.online-slip__line b { color: var(--text-primary); }
+
+.online-slip__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.online-foot {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding-top: 4px;
+}
+
+/* --- Print: the slip, and nothing else ----------------------------------- */
+@media print {
+  /* A guest pressing print wants the reference and the amount on one piece of
+     paper, not a dark screenshot of a booking form. */
+  body.booking-mode { background: #fff; color: #000; }
+  .kiosk-header,
+  .online-search,
+  .online-rooms,
+  .online-guest,
+  .online-slip__actions,
+  .online-error,
+  .online-panel__hint { display: none !important; }
+  .online-grid { display: block; }
+  .online-panel { border: 0; box-shadow: none; background: none; padding: 0; }
+  .online-slip { border-color: #999; background: none; }
+  .online-bill dt, .online-bill dd, .online-slip__line { color: #000; }
+}
+
+/* --------------------------------------------------------------------------
+   The assistant on the booking page
+
+   Same widget as the terminal, in a page that scrolls. The kiosk-mode rules do
+   not apply here — no fixed viewport, no full-height stage — so the scene keeps
+   its 16/9 composition and the conversation gets a sensible bounded height.
+   -------------------------------------------------------------------------- */
+.booking-mode .kiosk { align-items: stretch; }
+
+.booking-mode .kiosk-bubbles { min-height: 220px; }
+
+/* One column until there is something to put beside the conversation.
+   All three rail cards — the booking draft, the bill, the slip — start d-none:
+   there is nothing to bill and nothing to show until the assistant has settled a
+   room. The 320px gutter they left behind was not neutral empty space, it was a
+   column-shaped hole next to the widget that reads as cards which failed to load,
+   and it pushed the scene off the page's centre line for the entire first half of
+   every conversation.
+   :has() on the rail's own contents rather than a class, because kiosk.js already
+   unhides the cards one at a time and a second thing to remember to toggle is a
+   second thing to forget. */
+.booking-mode .kiosk:not(:has(.kiosk-rail > :not(.d-none))) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.booking-mode .kiosk:not(:has(.kiosk-rail > :not(.d-none))) .kiosk-rail {
+  display: none;
+}
+
+/* The microphone dock: bottom-left of the conversation column.
+   Anchored to the scene rather than to the viewport, so it cannot float over the
+   page as it scrolls — .scene__panel is the positioned ancestor, which puts left:0
+   exactly at the start of the conversation column, clear of the figure's hint chip
+   on one side and the language and voice chips on the other.
+   Same glass panel as .kiosk-mode .mic-dock, for the same reason: the dock sits
+   over whatever the scene is doing, so it cannot borrow contrast from the
+   background behind it. On the booking page it is also the control the guest is
+   most likely to look for, and an unbacked button floating over a gradient reads
+   as decoration. */
+.booking-mode .mic-dock {
+  position: absolute;
+  left: 0;
+  bottom: 12px;
+  z-index: 5;
+  padding: 10px 20px 8px;
+  border-radius: 26px;
+  background: rgba(8, 12, 24, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+
+/* Room for it. The dock is out of the flow now, and a conversation long enough to
+   reach the bottom of the scene would otherwise run underneath it — 100px of dock
+   on top of the newest answer, which is the one the guest is reading. */
+.booking-mode .scene__panel { padding-bottom: 118px; }
+
+@media (max-width: 900px) {
+  /* One column of scene on a phone: centred under the waveform is the only place
+     left, and there is no chip row beside it to collide with. */
+  .booking-mode .mic-dock {
+    position: static;
+    align-self: center;
+  }
+  .booking-mode .scene__panel { padding-bottom: 56px; }
+}
+
+/* --------------------------------------------------------------------------
+   Payment terms
+
+   Small print, but the kind a guest reads: when the money is due, what is taken,
+   what is already in the total. Set as a list rather than a paragraph because
+   those are separate questions and a guest scanning for one of them should not
+   have to read the other three.
+   -------------------------------------------------------------------------- */
+.online-pay {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 0.74rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.online-pay li + li { margin-top: 3px; }
+
+.online-slip__pay {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+/* The fallback, folded away. It is the route that still works with no model, no
+   budget and no internet, so it must be reachable in one click — not hidden
+   behind a support call. */
+.online-fallback {
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.online-fallback > summary {
+  cursor: pointer;
+  padding: 12px 16px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  list-style: none;
+}
+
+.online-fallback > summary::marker,
+.online-fallback > summary::-webkit-details-marker { display: none; }
+
+.online-fallback > summary::before {
+  content: "▸ ";
+  color: var(--accent-strong);
+}
+
+.online-fallback[open] > summary::before { content: "▾ "; }
+
+.online-fallback[open] > summary {
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.online-fallback > .online-grid { padding: 16px; }
+
+@media print {
+  /* Printing this page means printing the slip. The assistant, the search and the
+     fallback are not a receipt. */
+  .booking-mode #assistant-stage .kiosk-stage,
+  .booking-mode .online-fallback,
+  .booking-mode .kiosk-header,
+  .booking-mode #online-bill-card { display: none !important; }
+  .booking-mode #online-slip-card { border: 0; box-shadow: none; }
+}
+
+/* The quick actions on the booking page: same finger-sized cards as the terminal,
+   because the page is opened on phones and tablets more often than on a mouse. */
+.booking-mode .tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 88px;
+  padding: 12px 10px;
+  border-radius: var(--radius);
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.booking-mode .tile:hover {
+  transform: translateY(-3px);
+  border-color: rgba(129, 140, 248, 0.55);
+  background: rgba(129, 140, 248, 0.1);
+}
+
+.booking-mode .tile:active { transform: translateY(0) scale(0.97); }
+.booking-mode .tile__icon { font-size: 1.5rem; line-height: 1; }
+.booking-mode .tile__label { font-size: 0.88rem; font-weight: 620; }
+.booking-mode .tile__sub { display: block; font-size: 0.7rem; color: var(--text-secondary); }

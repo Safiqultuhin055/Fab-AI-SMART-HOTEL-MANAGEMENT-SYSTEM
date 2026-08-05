@@ -1,0 +1,43 @@
+{% load i18n %}
+<aside class="ashos-sidebar" id="ashos-sidebar">
+  <div class="ashos-brand">
+    <div class="ashos-brand__mark">A</div>
+    <div>
+      <div class="ashos-brand__title">{% trans "AI SMART HOTEL OS" %}</div>
+      <div class="ashos-brand__sub">{% trans "AI-Native Platform" %}</div>
+    </div>
+  </div>
+
+  {% comment %}
+    Every item is a working link. Modules still being built route to their own
+    page, which names the phase and lists what it will contain — a dead menu
+    item reads as a broken app, an explained one reads as a roadmap.
+    The phase tag marks what is not finished yet.
+  {% endcomment %}
+  <nav aria-label="{% trans 'Main navigation' %}">
+    {% for item in nav_items %}
+      <a class="nav-link-ashos {% if active_nav == item.key %}is-active{% endif %} {% if not item.ready %}is-pending{% endif %}"
+         href="{% url item.url_name %}">
+        <span aria-hidden="true">▪</span>{{ item.label }}
+        {% if not item.ready %}<span class="phase-tag">{{ item.phase }}</span>{% endif %}
+      </a>
+    {% endfor %}
+  </nav>
+
+  {% if quick_actions %}
+  <div class="nav-section">{% trans "Quick Actions" %}</div>
+  {% for item in quick_actions %}
+    <a class="nav-link-ashos {% if not item.ready %}is-pending{% endif %}" href="{% url item.url_name %}">
+      {{ item.label }}{% if not item.ready %}<span class="phase-tag">{{ item.phase }}</span>{% endif %}
+    </a>
+  {% endfor %}
+  {% endif %}
+
+  {% if current_hotel %}
+  <div class="glass-card mt-3" style="padding:14px">
+    <div class="card-title-ashos mb-2">{% trans "Property" %}</div>
+    <div style="font-weight:600">{{ current_hotel.name }}</div>
+    <div class="text-muted" style="font-size:.72rem">{% trans "ID" %}: {{ current_hotel.code }}</div>
+  </div>
+  {% endif %}
+</aside>

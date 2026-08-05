@@ -1,0 +1,48 @@
+# ASHOS — base runtime dependencies (no heavy ML; see ai.txt)
+# Pinned with compatible-release ranges: security patches flow in, majors do not.
+
+# --- Core framework -----------------------------------------------------------
+Django>=5.2,<6.0
+djangorestframework>=3.16,<4.0
+djangorestframework-simplejwt>=5.5,<6.0
+drf-spectacular>=0.28,<0.29
+django-filter>=25.1
+django-cors-headers>=4.7,<5.0
+django-environ>=0.12,<1.0
+
+# --- Database -----------------------------------------------------------------
+psycopg[binary,pool]>=3.2,<4.0
+pgvector>=0.4,<1.0
+
+# --- Async / realtime ---------------------------------------------------------
+channels>=4.2,<5.0
+channels-redis>=4.2,<5.0
+daphne>=4.1,<5.0
+
+# --- Background work ----------------------------------------------------------
+celery[redis]>=5.5,<6.0
+django-celery-beat>=2.8,<3.0
+django-celery-results>=2.6,<3.0
+redis>=5.2,<7.0
+
+# --- Storage / media ----------------------------------------------------------
+django-storages[s3]>=1.14,<2.0
+boto3>=1.35
+Pillow>=11.0
+
+# --- HTTP / resilience --------------------------------------------------------
+httpx>=0.28,<1.0
+tenacity>=9.0,<10.0
+
+# --- Ops / observability ------------------------------------------------------
+structlog>=25.1
+django-structlog>=9.0
+whitenoise>=6.9,<7.0
+
+# --- Crypto (encrypted-at-rest fields: provider keys, biometric embeddings) ---
+cryptography>=44.0
+
+# --- Utilities ----------------------------------------------------------------
+python-slugify>=8.0
+qrcode[pil]>=8.0
+python-dateutil>=2.9

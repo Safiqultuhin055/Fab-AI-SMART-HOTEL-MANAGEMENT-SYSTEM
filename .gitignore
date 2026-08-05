@@ -1,0 +1,83 @@
+# --- Python -------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtualenv ---------------------------------------------------------------
+.venv/
+venv/
+env/
+
+# --- Django -------------------------------------------------------------------
+*.log
+db.sqlite3
+/staticfiles/
+/media/
+local_settings.py
+
+# --- Secrets (D15: no secret ever enters git) ---------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+# Local run notes and the account dump — both contain plaintext passwords.
+runcommand.txt
+user.txt
+
+# --- AI artefacts (never versioned; pulled by scripts/fetch_models.py) --------
+/ai_models/
+/embeddings/cache/
+*.onnx
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+
+# --- Test / tooling -----------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Editors / OS -------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- AI coding assistants -----------------------------------------------------
+# Local tooling configuration, session state and agent instructions. It is per
+# developer and per machine: none of it is part of the product, and a repository
+# that carries one contributor's assistant settings invites the next contributor
+# to fight them.
+.claude/
+CLAUDE.md
+.codex/
+AGENTS.md
+.cursor/
+.cursorrules
+.cursorignore
+.antigravity/
+.windsurf/
+.windsurfrules
+.aider*
+.continue/
+.github/copilot-instructions.md
+.gemini/
+GEMINI.md
+.roo/
+.cline/
+.kilocode/
+
+# --- Docker volumes -----------------------------------------------------------
+/deploy/data/

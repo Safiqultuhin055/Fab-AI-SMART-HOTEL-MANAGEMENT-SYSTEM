@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h5 mb-1">{% trans "Reservations" %}</h1>
+    <div class="text-muted" style="font-size:.78rem">
+      {{ counts.arrivals }} {% trans "arriving" %} · {{ counts.in_house }} {% trans "in house" %} ·
+      {{ counts.departures }} {% trans "departing" %} {% trans "today" %}
+    </div>
+  </div>
+  <a class="btn btn-ghost btn-sm" href="/admin/booking/reservation/add/">{% trans "New reservation" %}</a>
+</div>
+
+<div class="glass-card mb-3">
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    {% for key, count in counts.items %}
+      <a class="pill {% if scope == key %}pill--ok{% endif %}" href="?scope={{ key }}">
+        {{ key|title }} <b>{{ count }}</b>
+      </a>
+    {% endfor %}
+    <a class="pill {% if scope == 'all' %}pill--ok{% endif %}" href="?scope=all">{% trans "All" %}</a>
+  </div>
+  <form method="get" class="d-flex gap-2">
+    <input type="hidden" name="scope" value="{{ scope }}">
+    <input class="form-control" name="q" value="{{ query }}" style="max-width:320px"
+           placeholder="{% trans 'Code, name or phone…' %}">
+    <button class="btn btn-accent" type="submit">{% trans "Search" %}</button>
+  </form>
+</div>
+
+<div class="glass-card glass-card--flush">
+  <div style="overflow-x:auto">
+    <table class="table-ashos">
+      <thead>
+        <tr>
+          <th>{% trans "Code" %}</th><th>{% trans "Guest" %}</th><th>{% trans "Room" %}</th>
+          <th>{% trans "Stay" %}</th><th>{% trans "Guests" %}</th><th>{% trans "Total" %}</th>
+          <th>{% trans "Balance" %}</th><th>{% trans "Status" %}</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for booking in page_obj %}
+        <tr>
+          <td><a href="/admin/booking/reservation/{{ booking.pk }}/change/"><code>{{ booking.code }}</code></a></td>
+          <td>{{ booking.guest.full_name }}</td>
+          <td class="text-muted">
+            {% for allocation in booking.allocations.all %}
+              {% if allocation.room %}{{ allocation.room.number }}{% else %}<i>{{ allocation.room_type.code }}</i>{% endif %}{% if not forloop.last %}, {% endif %}
+            {% endfor %}
+          </td>
+          <td class="text-muted">{{ booking.check_in|date:"d M" }} → {{ booking.check_out|date:"d M" }} ({{ booking.nights }}n)</td>
+          <td class="text-muted">{{ booking.adults }}+{{ booking.children }}</td>
+          <td>{{ hotel.currency }} {{ booking.grand_total|floatformat:0 }}</td>
+          <td style="color:{% if booking.balance_due > 0 %}var(--warn){% else %}var(--ok){% endif %}">
+            {{ booking.balance_due|floatformat:0 }}
+          </td>
+          <td>
+            {% if booking.status == 'checked_in' %}<span class="pill pill--ok">{{ booking.get_status_display }}</span>
+            {% elif booking.status == 'confirmed' %}<span class="pill pill--info">{{ booking.get_status_display }}</span>
+            {% elif booking.status == 'cancelled' or booking.status == 'no_show' %}<span class="pill pill--danger">{{ booking.get_status_display }}</span>
+            {% else %}<span class="pill">{{ booking.get_status_display }}</span>{% endif %}
+          </td>
+          <td class="text-end">
+            {% comment %}
+              Actions are POSTs, not links: a check-in is a state change and a
+              crawler or a prefetch must never be able to trigger one.
+            {% endcomment %}
+            {% if booking.can_check_in %}
+            <form method="post" action="{% url 'booking:action' booking.code 'check-in' %}" style="display:inline">
+              {% csrf_token %}<button class="btn btn-ghost btn-sm">{% trans "Check in" %}</button>
+            </form>
+            {% elif booking.is_in_house %}
+            <form method="post" action="{% url 'booking:action' booking.code 'check-out' %}" style="display:inline">
+              {% csrf_token %}<button class="btn btn-ghost btn-sm">{% trans "Check out" %}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-muted">{% trans "Nothing here." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="d-flex justify-content-between align-items-center mt-3" style="font-size:.82rem">
+  <div class="text-muted">{{ page_obj.start_index }}–{{ page_obj.end_index }} / {{ page_obj.paginator.count }}</div>
+  <div class="d-flex gap-2">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-ghost btn-sm" href="?scope={{ scope }}&q={{ query }}&page={{ page_obj.previous_page_number }}">{% trans "Previous" %}</a>
+    {% endif %}
+    {% if page_obj.has_next %}
+      <a class="btn btn-ghost btn-sm" href="?scope={{ scope }}&q={{ query }}&page={{ page_obj.next_page_number }}">{% trans "Next" %}</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="glass-card mt-3">
+  <div class="card-title-ashos">{% trans "Free tonight" %}</div>
+  <div class="d-flex flex-wrap gap-2">
+    {% for row in availability %}
+      <span class="pill {% if row.available %}pill--ok{% else %}pill--danger{% endif %}">
+        {{ row.room_type.name }}: {{ row.available }}/{{ row.total }}
+      </span>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

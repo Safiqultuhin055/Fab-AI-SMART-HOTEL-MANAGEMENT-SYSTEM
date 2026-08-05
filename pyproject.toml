@@ -1,0 +1,94 @@
+[project]
+name = "ashos"
+version = "0.1.0"
+description = "AI Smart Hotel OS — AI-native hotel management platform"
+requires-python = ">=3.12,<3.13"
+
+# ==============================================================================
+# Lint / format
+# ==============================================================================
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations", ".venv", "staticfiles"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle / pyflakes
+    "I",             # isort
+    "UP",            # pyupgrade
+    "B",             # bugbear
+    "C4",            # comprehensions
+    "DJ",            # flake8-django
+    "S",             # bandit (security)
+    "T20",           # no print()
+    "RET", "SIM", "ARG", "PTH",
+]
+ignore = [
+    "S101",   # assert — pytest needs it
+    "RET504", # named return value reads better in service code
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "ARG"]
+"config/settings/*" = ["F403", "F405"]
+# Framework-mandated signatures: Django admin hooks, DRF permission methods,
+# signal receivers and provider protocol methods must accept arguments they do
+# not always use. Renaming them to _underscore would break the framework.
+"*/admin.py" = ["ARG002"]
+"*/signals.py" = ["ARG001"]
+"*/permissions.py" = ["ARG002"]
+"*/backends.py" = ["ARG002"]
+"*/management/commands/*" = ["ARG002"]
+"services/ai/providers/*" = ["ARG002"]
+"apps/core/models.py" = ["ARG002"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "api", "services", "config"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = "migrations"
+
+# ==============================================================================
+# Types
+# ==============================================================================
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+exclude = ["migrations/", ".venv/"]
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*", "insightface.*", "paddleocr.*", "open_clip.*", "faster_whisper.*"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.dev"
+
+# ==============================================================================
+# Tests
+# ==============================================================================
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--strict-markers --reuse-db -ra"
+testpaths = ["tests"]
+markers = [
+    "ai_eval: prompt regression tests — hit a real LLM, excluded from CI default",
+    "integration: needs postgres/redis",
+    "slow: takes >5s",
+]
+
+[tool.coverage.run]
+source = ["apps", "api", "services"]
+omit = ["*/migrations/*", "*/tests/*", "config/*"]
+
+[tool.coverage.report]
+# goal.txt §6: >70% overall, >85% in services/
+fail_under = 70
+show_missing = true

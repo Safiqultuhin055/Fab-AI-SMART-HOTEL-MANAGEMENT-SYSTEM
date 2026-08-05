@@ -1,0 +1,44 @@
+{% load i18n %}
+<header class="ashos-topbar">
+  <button class="btn btn-ghost d-lg-none" type="button" id="sidebar-toggle"
+          aria-controls="ashos-sidebar" aria-label="{% trans 'Toggle navigation' %}">☰</button>
+
+  <div class="flex-grow-1" style="max-width:420px">
+    <input class="form-control" type="search" disabled
+           placeholder="{% trans 'Search guests, rooms, invoices… (P1)' %}"
+           aria-label="{% trans 'Global search' %}">
+  </div>
+
+  <div class="ms-auto d-flex align-items-center gap-2">
+    {% comment %}
+      Three states, not two. "Enabled but no API key" must not render green —
+      staff would trust a concierge that fails on the first question.
+    {% endcomment %}
+    <span class="pill {% if ai_status.state == 'online' %}pill--ok{% elif ai_status.state == 'unconfigured' %}pill--warn{% endif %}"
+          title="{% if ai_status.state == 'unconfigured' %}{% trans 'Add an API key in AI Center' %}{% endif %}">
+      <span class="status-dot {% if ai_status.state == 'online' %}status-dot--ok{% else %}status-dot--off{% endif %}"></span>
+      {{ ai_status.label }}
+    </span>
+
+    <button class="btn btn-ghost btn-sm" type="button" id="theme-toggle"
+            aria-label="{% trans 'Toggle colour theme' %}">◐</button>
+
+    {% if user.is_authenticated %}
+      <div class="dropdown">
+        <button class="btn btn-ghost btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+          {{ user.get_short_name }}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item" href="{% url 'accounts:profile' %}">{% trans "My profile" %}</a></li>
+          {% if user.is_staff %}<li><a class="dropdown-item" href="/admin/">{% trans "Django admin" %}</a></li>{% endif %}
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}
+              <button class="dropdown-item" type="submit">{% trans "Sign out" %}</button>
+            </form>
+          </li>
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</header>

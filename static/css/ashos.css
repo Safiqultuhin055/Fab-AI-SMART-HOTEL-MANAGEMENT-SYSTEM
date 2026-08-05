@@ -1,0 +1,598 @@
+/* ==========================================================================
+   ASHOS design system
+   Dark-first glassmorphism, indigo accent — matches Prototype.png (goal.txt §2.3).
+
+   Everything is a CSS custom property so a hotel's accent colour (set on
+   Hotel.accent_color) can be injected per request without a rebuild, and so
+   the light theme is a variable swap rather than a second stylesheet.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --bg-root: #0a0e1a;
+  --bg-canvas: #0d1220;
+  --bg-surface: rgba(255, 255, 255, 0.04);
+  --bg-surface-hover: rgba(255, 255, 255, 0.07);
+  --bg-elevated: #141b2d;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Text */
+  --text-primary: #e8ecf5;
+  --text-secondary: #9aa5bd;
+  --text-muted: #6b7690;
+
+  /* Brand — overridden inline from Hotel.accent_color */
+  --accent: #6366f1;
+  --accent-soft: rgba(99, 102, 241, 0.16);
+  --accent-strong: #818cf8;
+
+  /* Status */
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --info: #38bdf8;
+
+  /* Geometry */
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --sidebar-w: 248px;
+  --topbar-h: 64px;
+
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --blur: saturate(140%) blur(16px);
+}
+
+[data-theme="light"] {
+  --bg-root: #f4f6fb;
+  --bg-canvas: #ffffff;
+  --bg-surface: rgba(15, 23, 42, 0.03);
+  --bg-surface-hover: rgba(15, 23, 42, 0.06);
+  --bg-elevated: #ffffff;
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.16);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --shadow-card: 0 6px 20px rgba(15, 23, 42, 0.08);
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+body {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(56, 189, 248, 0.10), transparent 55%),
+    var(--bg-root);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Hind Siliguri", Roboto,
+    sans-serif;
+  min-height: 100vh;
+  letter-spacing: -0.01em;
+}
+
+a { color: var(--accent-strong); text-decoration: none; }
+a:hover { color: var(--accent); }
+::selection { background: var(--accent-soft); }
+
+/* Scrollbars — the default light scrollbar on a dark shell looks broken. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
+
+/* --------------------------------------------------------------------------
+   Layout
+   -------------------------------------------------------------------------- */
+.ashos-shell { display: flex; min-height: 100vh; }
+
+.ashos-sidebar {
+  width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
+  background: var(--bg-surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border-right: 1px solid var(--border-subtle);
+  padding: 18px 12px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.ashos-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+
+.ashos-topbar {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.ashos-content { padding: 22px; flex: 1 1 auto; }
+
+@media (max-width: 992px) {
+  .ashos-sidebar { position: fixed; z-index: 60; transform: translateX(-100%); transition: transform 0.2s ease; }
+  .ashos-sidebar.is-open { transform: translateX(0); }
+}
+
+/* --------------------------------------------------------------------------
+   Brand + navigation
+   -------------------------------------------------------------------------- */
+.ashos-brand { display: flex; align-items: center; gap: 10px; padding: 6px 10px 18px; }
+.ashos-brand__mark {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), #22d3ee);
+  display: grid; place-items: center; font-weight: 700; color: #fff;
+}
+.ashos-brand__title { font-size: 0.95rem; font-weight: 650; line-height: 1.1; }
+.ashos-brand__sub { font-size: 0.68rem; color: var(--text-muted); }
+
+.nav-section {
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--text-muted); padding: 16px 12px 6px;
+}
+
+.nav-link-ashos {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; margin-bottom: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-link-ashos:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+.nav-link-ashos.is-active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.nav-link-ashos.is-disabled { opacity: 0.42; cursor: not-allowed; }
+/* Reachable, but the module behind it is still being built. Dimmed enough to
+   read as "not finished", not so dim it reads as "broken". */
+.nav-link-ashos.is-pending { opacity: 0.72; }
+.nav-link-ashos.is-pending:hover { opacity: 1; }
+.nav-link-ashos.is-pending.is-active { opacity: 1; }
+.nav-link-ashos .phase-tag {
+  margin-left: auto; font-size: 0.62rem; color: var(--text-muted);
+  border: 1px solid var(--border-subtle); border-radius: 6px; padding: 0 5px;
+}
+
+/* --------------------------------------------------------------------------
+   Cards
+   -------------------------------------------------------------------------- */
+.glass-card {
+  background: var(--bg-surface);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 18px;
+}
+.glass-card--flush { padding: 0; overflow: hidden; }
+
+.card-title-ashos {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-secondary); margin-bottom: 12px; font-weight: 600;
+}
+
+/* KPI tile — the top strip in the prototype */
+.kpi { display: flex; flex-direction: column; gap: 4px; }
+.kpi__label { font-size: 0.74rem; color: var(--text-secondary); }
+.kpi__value { font-size: 1.65rem; font-weight: 680; line-height: 1.1; }
+.kpi__value--empty { color: var(--text-muted); font-size: 1.05rem; font-weight: 500; }
+.kpi__delta { font-size: 0.72rem; }
+.kpi__delta--up { color: var(--ok); }
+.kpi__delta--down { color: var(--danger); }
+
+/* --------------------------------------------------------------------------
+   Badges / pills
+   -------------------------------------------------------------------------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.72rem; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--border-subtle); background: var(--bg-surface);
+}
+.pill--ok { color: var(--ok); border-color: rgba(34, 197, 94, 0.35); background: rgba(34, 197, 94, 0.10); }
+.pill--warn { color: var(--warn); border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.10); }
+.pill--danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.10); }
+.pill--info { color: var(--info); border-color: rgba(56, 189, 248, 0.35); background: rgba(56, 189, 248, 0.10); }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot--ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18); }
+.status-dot--off { background: var(--text-muted); }
+
+/* --------------------------------------------------------------------------
+   Forms & buttons
+   -------------------------------------------------------------------------- */
+.form-control, .form-select {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+}
+.form-control:focus, .form-select:focus {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.form-control::placeholder { color: var(--text-muted); }
+
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border: none; color: #fff; font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+.btn-accent:hover { filter: brightness(1.08); color: #fff; }
+.btn-ghost {
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  color: var(--text-secondary); border-radius: var(--radius-sm);
+}
+.btn-ghost:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+
+/* --------------------------------------------------------------------------
+   Tables
+   -------------------------------------------------------------------------- */
+.table-ashos { width: 100%; font-size: 0.85rem; }
+.table-ashos thead th {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); font-weight: 600;
+  padding: 10px 14px; border-bottom: 1px solid var(--border-subtle);
+}
+.table-ashos tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+.table-ashos tbody tr:hover { background: var(--bg-surface-hover); }
+
+/* --------------------------------------------------------------------------
+   Auth screen
+   -------------------------------------------------------------------------- */
+.auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.auth-card { width: 100%; max-width: 420px; }
+
+/* --------------------------------------------------------------------------
+   Floating AI assistant (prototype: bottom-right concierge)
+   -------------------------------------------------------------------------- */
+.ai-fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 50;
+  width: 56px; height: 56px; border-radius: 50%; border: none;
+  background: linear-gradient(135deg, var(--accent), #22d3ee);
+  color: #fff; font-size: 1.3rem;
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.45);
+  cursor: pointer; transition: transform 0.15s ease;
+}
+.ai-fab:hover { transform: translateY(-2px) scale(1.04); }
+.ai-fab[disabled] { background: var(--bg-surface-hover); box-shadow: none; cursor: not-allowed; }
+
+/* --------------------------------------------------------------------------
+   Placeholder for unbuilt modules — honest, not fake data
+   -------------------------------------------------------------------------- */
+.not-yet {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  padding: 18px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   Accessibility — kiosk use, WCAG 2.1 AA (goal.txt §6)
+   -------------------------------------------------------------------------- */
+:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  background: var(--accent); color: #fff; padding: 10px 16px; border-radius: 0 0 8px 0;
+}
+.skip-link:focus { left: 0; color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* --------------------------------------------------------------------------
+   Room status board (/rooms/)
+
+   A tile is a photograph with a verdict under it. Two independent states, and
+   they are deliberately not merged into one colour:
+
+     the LEFT EDGE and the body tint  whether the room can be sold, from the
+                                      reservations — the question a receptionist
+                                      is asking
+     the line under the pill          the physical state, from housekeeping
+
+   A spotless room can be sold and a dirty one can be free tonight, so one colour
+   for both answers neither.
+   -------------------------------------------------------------------------- */
+.board-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.board-head__sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* The filter bar, the legend and the property's position in one row, because they
+   are the same three facts. Sticky, so filtering still works when you are three
+   floors down the page. */
+.board-bar {
+  position: sticky;
+  top: calc(var(--topbar-h) + 4px);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-card);
+}
+
+.board-bar__states { display: flex; flex-wrap: wrap; gap: 8px; }
+.board-bar__filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.board-bar__filters .form-select { max-width: 190px; }
+
+/* Count first, in a size that reads from a step back, label under it. The four of
+   them ARE the legend: these dots are the colours on the tiles. */
+.state-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 104px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.state-chip:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+
+.state-chip__count { font-size: 1.15rem; font-weight: 680; line-height: 1.1; }
+
+.state-chip__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* The selected one, in its own colour. */
+.state-chip.is-on { background: rgba(255, 255, 255, 0.06); border-color: var(--border-strong); }
+.state-chip--sold.is-on { border-color: rgba(56, 189, 248, 0.55); background: rgba(56, 189, 248, 0.1); }
+.state-chip--booked.is-on { border-color: rgba(245, 158, 11, 0.55); background: rgba(245, 158, 11, 0.1); }
+.state-chip--free.is-on { border-color: rgba(34, 197, 94, 0.55); background: rgba(34, 197, 94, 0.1); }
+.state-chip--blocked.is-on { border-color: rgba(239, 68, 68, 0.55); background: rgba(239, 68, 68, 0.1); }
+
+.floor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.floor-head__counts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.floor-head__counts span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Dimmer than the per-state counts beside it, but still legible: --text-muted at
+   this size disappeared into the card. */
+.floor-head__total { color: var(--text-muted); }
+
+/* Six to a line, then fewer as the window narrows.
+   A fixed column count rather than auto-fill because the board is read as a floor
+   plan: the same room sits in the same column on every floor, and a grid that
+   reflows by available width puts 102 under 108 on one floor and under 109 on the
+   next.
+   The column is the picture's width, not a share of the viewport — 120px of photo
+   plus the tile's own 6px either side. A fluid column with a fixed-size photograph
+   inside it is dead space either side of every thumbnail. */
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 132px);
+  justify-content: start;
+  gap: 12px;
+}
+
+@media (max-width: 1500px) { .room-grid { grid-template-columns: repeat(5, 132px); } }
+@media (max-width: 1250px) { .room-grid { grid-template-columns: repeat(4, 132px); } }
+@media (max-width: 980px) { .room-grid { grid-template-columns: repeat(3, 132px); } }
+
+.room-tile {
+  overflow: hidden;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--text-muted);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.room-tile:hover,
+.room-tile:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  border-color: var(--border-strong);
+}
+
+/* The state, twice over: the edge for scanning a wall of them, and a wash across
+   the body so that one tile on its own still answers the question. */
+.room-tile--sold { border-left-color: var(--info); }
+.room-tile--sold .room-tile__body { background: rgba(56, 189, 248, 0.06); }
+.room-tile--booked { border-left-color: var(--warn); }
+.room-tile--booked .room-tile__body { background: rgba(245, 158, 11, 0.07); }
+.room-tile--free { border-left-color: var(--ok); }
+.room-tile--free .room-tile__body { background: rgba(34, 197, 94, 0.06); }
+.room-tile--blocked { border-left-color: var(--danger); }
+.room-tile--blocked .room-tile__body { background: rgba(239, 68, 68, 0.07); }
+
+.room-tile__figure {
+  position: relative;
+  display: block;
+  /* 120x100, fixed. Enough of the room to recognise it, small enough that the
+     guest's name and the departure date sit under it rather than below the fold. */
+  width: 120px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.room-tile__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* A scrim rather than a solid chip behind the number: the number has to stay
+   readable over whatever was uploaded, and a photograph should not have a black
+   box dropped on it to achieve that. */
+.room-tile__figure::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 62%;
+  background: linear-gradient(180deg, rgba(6, 10, 22, 0.8), transparent);
+  pointer-events: none;
+}
+
+.room-tile__figure--blank {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(140px 80px at 50% 0%, rgba(99, 102, 241, 0.22), transparent 70%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.room-tile__figure--blank::after { display: none; }
+
+.room-tile__nophoto { font-size: 0.62rem; color: var(--text-muted); margin-top: 20px; }
+
+.room-tile__number {
+  position: absolute;
+  z-index: 1;
+  top: 5px;
+  left: 9px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65);
+}
+
+.room-tile__type {
+  position: absolute;
+  z-index: 1;
+  top: 7px;
+  right: 9px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65);
+}
+
+.room-tile__figure--blank .room-tile__number,
+.room-tile__figure--blank .room-tile__type {
+  color: var(--text-primary);
+  text-shadow: none;
+}
+
+.room-tile__body { padding: 8px 3px 2px; }
+
+/* Read across a desk from standing, not held in a hand: --text-muted at 0.7rem
+   was legible in a design tool and not on the board. */
+.room-tile__status {
+  margin-top: 5px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+/* One line each. A long name must not make one tile taller than its neighbours. */
+.room-tile__who {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 560;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-tile__when {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The dots in the chips and the floor headers, matching the tile edges. */
+.room-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.room-dot--sold { background: var(--info); }
+.room-dot--booked { background: var(--warn); }
+.room-dot--free { background: var(--ok); }
+.room-dot--blocked { background: var(--danger); }
+
+/* Room type rows in the rates table. */
+.room-thumb {
+  width: 64px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  display: block;
+}
+
+.room-thumb--blank {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+@media (max-width: 640px) {
+  /* A phone in a corridor: two to a line, and the bar stops competing with the
+     board for the top of the screen. */
+  .room-grid { grid-template-columns: repeat(2, 132px); }
+  .board-bar { position: static; }
+  .state-chip { min-width: 88px; padding: 6px 10px; }
+  .state-chip__count { font-size: 1rem; }
+}

@@ -1,0 +1,34 @@
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Secrets never enter an image layer.
+.env
+.env.*
+!.env.example
+secrets/
+
+# Model weights are mounted as a volume, not baked in — they would add
+# gigabytes to every deploy and are licence-restricted (goal.txt R2).
+ai_models/
+embeddings/cache/
+*.onnx
+*.safetensors
+*.pt
+*.pth
+
+media/
+staticfiles/
+docs/
+*.md
+!README.md
+Prototype.png

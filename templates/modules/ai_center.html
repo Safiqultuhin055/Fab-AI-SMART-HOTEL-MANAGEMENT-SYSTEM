@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h5 mb-1">{% trans "AI Center" %}</h1>
+    <div class="text-muted" style="font-size:.78rem">
+      {% trans "Model configuration, versioned prompts and observability" %}
+      {% if hotel %} · {{ hotel.name }}{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <span class="pill {% if ai_status.state == 'online' %}pill--ok{% else %}pill--warn{% endif %}">
+      <span class="status-dot {% if ai_status.state == 'online' %}status-dot--ok{% else %}status-dot--off{% endif %}"></span>
+      {{ ai_status.label }}
+    </span>
+    <a class="btn btn-ghost btn-sm" href="/admin/ai_center/modelconfig/">{% trans "Edit in admin" %}</a>
+  </div>
+</div>
+
+{% comment %} Observability — SRS §6.4. Real numbers from ai_center_usagelog. {% endcomment %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Calls (7 days)" %}</div>
+      <div class="kpi__value">{{ stats.calls }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Spend (7 days)" %}</div>
+      <div class="kpi__value">${{ stats.cost|floatformat:4 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Avg latency" %}</div>
+      <div class="kpi__value">{{ stats.latency }}<span style="font-size:.9rem"> ms</span></div>
+      <div class="kpi__delta text-muted">{% trans "target < 1500 ms" %}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Error rate" %}</div>
+      <div class="kpi__value">{{ stats.error_rate|floatformat:2 }}%</div>
+      <div class="kpi__delta text-muted">{{ stats.failures }} {% trans "failed" %}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Fallback / cached" %}</div>
+      <div class="kpi__value">{{ stats.fallbacks }} / {{ stats.cached }}</div>
+    </div>
+  </div>
+</div>
+
+{% comment %}
+  What every capability actually resolves to for this property, after walking the
+  chain: this hotel's own row, then a platform-wide row, then the environment.
+  This card exists because "AI not configured" next to seven configured-looking
+  rows is impossible to diagnose by eye — the rows below are the registry, this
+  is the answer.
+{% endcomment %}
+<div class="glass-card mb-3">
+  <div class="card-title-ashos">{% trans "What this hotel is running on" %}</div>
+  <div style="overflow-x:auto">
+    <table class="table-ashos">
+      <thead>
+        <tr>
+          <th>{% trans "Capability" %}</th><th>{% trans "Provider" %}</th>
+          <th>{% trans "Model" %}</th><th>{% trans "Configured in" %}</th>
+          <th>{% trans "Usable" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in resolution %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td class="text-muted">{{ row.provider }}</td>
+          <td style="font-family:monospace;font-size:.78rem">{{ row.model|default:"—" }}</td>
+          <td>
+            {% if row.source == "this hotel" %}
+              <span class="pill pill--ok">{% trans "this hotel" %}</span>
+            {% elif row.source == "platform-wide" %}
+              <span class="pill">{% trans "platform-wide" %}</span>
+            {% else %}
+              <span class="pill">{% trans "environment" %}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.ready %}<span class="pill pill--ok">{% trans "yes" %}</span>
+            {% else %}<span class="pill pill--warn">{% trans "no key" %}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-muted mt-2 mb-0" style="font-size:.76rem;line-height:1.6">
+    {% blocktrans %}A capability with no usable credential falls through to the next
+    level. A row belonging to this hotel that has no key is skipped rather than
+    allowed to hide a working platform-wide one.{% endblocktrans %}
+  </p>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="glass-card glass-card--flush">
+      <div class="p-3 pb-0 d-flex justify-content-between align-items-center">
+        <div class="card-title-ashos mb-0">{% trans "API integrations" %}</div>
+        {% if can_configure %}
+        <a class="btn btn-ghost btn-sm" href="/admin/ai_center/modelconfig/add/">{% trans "Add" %}</a>
+        {% endif %}
+      </div>
+      <div style="overflow-x:auto">
+        <table class="table-ashos">
+          <thead>
+            <tr>
+              <th>{% trans "Label" %}</th><th>{% trans "Scope" %}</th>
+              <th>{% trans "Provider" %}</th>
+              <th>{% trans "Capability" %}</th><th>{% trans "Model" %}</th>
+              <th>{% trans "API key" %}</th><th>{% trans "Default" %}</th>
+              <th>{% trans "Active" %}</th><th>{% trans "Health" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for config in configs %}
+            <tr>
+              <td>
+                {% if can_configure %}
+                  <a href="/admin/ai_center/modelconfig/{{ config.pk }}/change/">{{ config.name }}</a>
+                {% else %}
+                  {{ config.name }}
+                {% endif %}
+              </td>
+              {% comment %}
+                A platform row is shared by every property, so an operator editing
+                one needs to know before they change it, not after.
+              {% endcomment %}
+              <td>
+                {% if config.is_platform_wide %}
+                  <span class="pill">{% trans "all hotels" %}</span>
+                {% else %}
+                  <span class="pill pill--ok">{{ config.tenant.code }}</span>
+                {% endif %}
+              </td>
+              <td class="text-muted">{{ config.get_provider_display }}</td>
+              <td class="text-muted">{{ config.get_kind_display }}</td>
+              <td>{{ config.model_name }}</td>
+              {% comment %}
+                Masked, never full. This page is on a laptop at a front desk;
+                a screenshot of it should not be a credential leak.
+              {% endcomment %}
+              <td class="text-muted" style="font-family:monospace;font-size:.76rem">{{ config.masked_key }}</td>
+              <td>{% if config.is_default %}<span class="pill pill--ok">✓</span>{% else %}—{% endif %}</td>
+              <td>
+                {% if config.is_active %}<span class="pill pill--ok">{% trans "yes" %}</span>
+                {% else %}<span class="pill">{% trans "no" %}</span>{% endif %}
+              </td>
+              <td>
+                {% if config.last_error %}
+                  <span class="pill pill--danger" title="{{ config.last_error }}">{% trans "failing" %}</span>
+                {% elif config.last_verified_at %}
+                  <span class="pill pill--ok">{{ config.last_verified_at|date:"d M" }}</span>
+                {% else %}
+                  <span class="pill">{% trans "untested" %}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="text-muted">{% trans "No integrations configured for this hotel." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="p-3 pt-2 text-muted" style="font-size:.76rem">
+        {% trans "Only the row marked Default for a capability is used at call time. Test a row from the admin before activating it." %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="glass-card glass-card--flush h-100">
+      <div class="p-3 pb-0"><div class="card-title-ashos">{% trans "Prompts (versioned)" %}</div></div>
+      <div style="overflow-x:auto">
+        <table class="table-ashos">
+          <thead><tr><th>{% trans "Key" %}</th><th>{% trans "Versions" %}</th><th>{% trans "Active" %}</th></tr></thead>
+          <tbody>
+            {% for prompt in prompts %}
+            <tr>
+              <td>{{ prompt.key }}</td>
+              <td class="text-muted">{{ prompt.versions.count }}</td>
+              <td>
+                {% with active=prompt.active_version %}
+                  {% if active %}<span class="pill pill--ok">v{{ active.version }}</span>
+                  {% else %}<span class="pill pill--warn">{% trans "none" %}</span>{% endif %}
+                {% endwith %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-muted">{% trans "No prompts seeded." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Usage by module (7 days)" %}</div>
+      <table class="table-ashos">
+        <thead><tr><th>{% trans "Module" %}</th><th>{% trans "Calls" %}</th><th>{% trans "Avg ms" %}</th><th>{% trans "Cost" %}</th></tr></thead>
+        <tbody>
+          {% for row in by_module %}
+          <tr>
+            <td>{{ row.module }}</td>
+            <td>{{ row.calls }}</td>
+            <td class="text-muted">{{ row.latency|floatformat:0 }}</td>
+            <td class="text-muted">${{ row.cost|floatformat:4 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted">{% trans "No AI calls recorded yet." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Usage by capability (7 days)" %}</div>
+      <table class="table-ashos">
+        <thead><tr><th>{% trans "Capability" %}</th><th>{% trans "Calls" %}</th><th>{% trans "Avg ms" %}</th></tr></thead>
+        <tbody>
+          {% for row in by_kind %}
+          <tr>
+            <td>{{ row.kind }}</td>
+            <td>{{ row.calls }}</td>
+            <td class="text-muted">{{ row.latency|floatformat:0 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="text-muted">{% trans "No AI calls recorded yet." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="glass-card glass-card--flush">
+      <div class="p-3 pb-0"><div class="card-title-ashos">{% trans "Recent calls" %}</div></div>
+      <div style="overflow-x:auto">
+        <table class="table-ashos">
+          <thead>
+            <tr>
+              <th>{% trans "When" %}</th><th>{% trans "Module" %}</th><th>{% trans "Capability" %}</th>
+              <th>{% trans "Model" %}</th><th>{% trans "Tokens" %}</th><th>{% trans "Latency" %}</th>
+              <th>{% trans "Cost" %}</th><th>{% trans "Result" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for call in recent_calls %}
+            <tr>
+              <td class="text-muted">{{ call.created_at|date:"d M H:i" }}</td>
+              <td>{{ call.module }}</td>
+              <td class="text-muted">{{ call.kind }}</td>
+              <td class="text-muted">{{ call.model_name }}</td>
+              <td class="text-muted">{{ call.input_tokens }}/{{ call.output_tokens }}</td>
+              <td>{{ call.latency_ms }} ms</td>
+              <td class="text-muted">${{ call.cost_usd|floatformat:5 }}</td>
+              <td>
+                {% if call.success %}<span class="pill pill--ok">{% trans "ok" %}</span>
+                {% else %}<span class="pill pill--danger">{{ call.error_code }}</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="text-muted">{% trans "Nothing yet." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Still to build here" %}</div>
+      <p class="text-muted" style="font-size:.84rem; line-height:1.7">
+        {% trans "Phase 2 adds in-page editing: knowledge-base upload and re-embedding, prompt editing with one-click rollback, live conversation log, guardrail trigger counts and the kill switch. Until then, everything on this page is editable through the Django admin." %}
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

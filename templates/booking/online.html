@@ -1,0 +1,400 @@
+{% load static assets %}<!doctype html>
+<html lang="{{ LANGUAGE_CODE|default:'en' }}" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ page_title }} · {{ hotel.name|default:"ASHOS" }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="{% asset 'css/ashos.css' %}">
+  <link rel="stylesheet" href="{% asset 'css/kiosk.css' %}">
+  {% if hotel and hotel.accent_color %}<style>:root { --accent: {{ hotel.accent_color }}; }</style>{% endif %}
+</head>
+<body class="booking-mode">
+{% comment %}
+  The public booking page — the lobby terminal, on the web.
+
+  It is the same assistant, in the same clothes, doing the same job: the guest says
+  what they want and it asks for the dates, offers the rooms it actually has,
+  quotes the real price and holds the room. The only differences are the ones that
+  have to be different away from a lobby:
+
+    no camera, no device pickers           nobody is standing at a fixed rig; the
+                                           microphone the guest already owns is the
+                                           one to use, and photographing somebody
+                                           at home is not a flow anybody designed
+    the microphone still opens itself      a guest who opened a page that is a
+                                           receptionist should not have to find a
+                                           button before speaking to it
+    the rail is the bill and the slip      a guest at home has no passport to scan
+                                           and does have a total to check
+    channel = website                      so the reservation is attributed to the
+                                           website and not to a kiosk in a lobby
+
+  Below the assistant is a plain form that books the same room through the same
+  services. It is not decoration: with no LLM key, no budget or no internet the
+  assistant cannot take a booking, and a hotel whose website stops selling rooms
+  when a token runs out has bought a liability. Same reason the kiosk keeps a
+  deterministic offline answerer.
+{% endcomment %}
+<div class="online-shell">
+  <header class="kiosk-header">
+    <div class="kiosk-header__brand">
+      {% if hotel.logo %}
+        <img class="kiosk-header__logo" src="{{ hotel.logo.url }}" alt="{{ hotel.name }}">
+      {% else %}
+        <span class="kiosk-header__logo kiosk-header__logo--mark" aria-hidden="true">
+          {{ hotel.name|default:"A"|slice:":1" }}
+        </span>
+      {% endif %}
+      <span class="kiosk-header__names">
+        <b class="kiosk-header__hotel">{{ hotel.name|default:"ASHOS" }}</b>
+        <span class="kiosk-header__sub" id="kiosk-brand-sub">{{ kiosk_copy.brand_sub }}</span>
+      </span>
+    </div>
+
+    <div class="kiosk-header__meta">
+      {% if hotel.phone %}
+        <span class="kiosk-header__model">☎ {{ hotel.phone }}</span>
+      {% endif %}
+      <span class="kiosk-header__clock">
+        <b id="kiosk-time">--:--</b>
+        <span id="kiosk-date">{{ hotel.city|default:"" }}</span>
+      </span>
+    </div>
+  </header>
+
+  {% if not hotel %}
+    <div class="glass-card">
+      <div class="not-yet">
+        No hotel selected. Open this page with ?hotel=HOTEL-CODE, for example
+        /book/?hotel=GLH-001
+      </div>
+    </div>
+  {% else %}
+
+  {% if error %}
+    <div class="online-error" role="alert">{{ error }}</div>
+  {% endif %}
+
+  {% comment %}
+    The assistant. Same widget as the terminal and the staff console, with
+    rail="online" so the column beside it is the bill and the slip.
+  {% endcomment %}
+  <div id="assistant-stage">
+    {% include "reception/_kiosk_panel.html" with channel="website" rail="online" %}
+  </div>
+
+  {% comment %}
+    The fallback, folded away. Open by default only when the assistant cannot take
+    a booking at all — a page whose only route to a room is a model that is down is
+    a page that stops selling rooms.
+  {% endcomment %}
+  <details class="online-fallback" {% if ai_status.state != 'online' %}open{% endif %}>
+    <summary>
+      {% if ai_status.state == 'online' %}
+        Book without the assistant
+      {% else %}
+        The assistant is unavailable — book directly
+      {% endif %}
+    </summary>
+
+    <div class="online-grid">
+      <section class="glass-card online-panel">
+        <div class="online-panel__head">
+          <span class="online-step">1</span>
+          <div>
+            <div class="card-title-ashos mb-0">Your stay</div>
+            <p class="online-panel__hint">Up to {{ limits.nights }} nights, {{ limits.rooms }} rooms.</p>
+          </div>
+        </div>
+
+        {% comment %}
+          GET, so a search is a URL: shareable, refreshable, and back does what a
+          guest expects. Nothing is held until the form at the bottom is posted.
+        {% endcomment %}
+        <form method="get" class="online-search">
+          <input type="hidden" name="hotel" value="{{ hotel.code }}">
+          <label class="online-field">
+            <span>Arriving</span>
+            <input type="date" name="check_in" value="{{ stay.check_in|date:'Y-m-d' }}" required>
+          </label>
+          <label class="online-field">
+            <span>Nights</span>
+            <input type="number" name="nights" min="1" max="{{ limits.nights }}" value="{{ stay.nights }}">
+          </label>
+          <label class="online-field">
+            <span>Adults</span>
+            <input type="number" name="adults" min="1" max="12" value="{{ stay.adults }}">
+          </label>
+          <label class="online-field">
+            <span>Children</span>
+            <input type="number" name="children" min="0" max="12" value="{{ stay.children }}">
+          </label>
+          <label class="online-field">
+            <span>Rooms</span>
+            <input type="number" name="rooms" min="1" max="{{ limits.rooms }}" value="{{ stay.rooms }}">
+          </label>
+          <button class="btn btn-accent" type="submit">Search</button>
+        </form>
+
+        <div class="online-rooms">
+          {% for offer in offers %}
+          <a class="online-room {% if chosen and chosen.code == offer.code %}is-chosen{% endif %}"
+             href="?hotel={{ hotel.code }}&check_in={{ stay.check_in|date:'Y-m-d' }}&nights={{ stay.nights }}&adults={{ stay.adults }}&children={{ stay.children }}&rooms={{ stay.rooms }}&room={{ offer.code }}#book-direct">
+            {% if offer.photo %}
+              <img class="online-room__photo" src="{{ offer.photo.url }}" alt="{{ offer.room_type.name }}" loading="lazy">
+            {% else %}
+              <span class="online-room__photo online-room__photo--blank">No photo</span>
+            {% endif %}
+            <span class="online-room__body">
+              <b class="online-room__name">{{ offer.room_type.name }}</b>
+              <span class="online-room__meta">
+                {{ offer.room_type.get_bed_type_display }} ·
+                sleeps {{ offer.room_type.max_occupancy }}
+                {% if offer.room_type.view %} · {{ offer.room_type.view }}{% endif %}
+              </span>
+              <span class="online-room__meta">{{ offer.available }} left for these dates</span>
+            </span>
+            <span class="online-room__price">
+              <b>{{ hotel.currency }} {{ offer.nightly|floatformat:0 }}</b>
+              <span>per night</span>
+            </span>
+          </a>
+          {% empty %}
+          <div class="not-yet">
+            Nothing free for those dates and that many guests. Try different dates,
+            or fewer guests per room.
+          </div>
+          {% endfor %}
+        </div>
+
+        {% if chosen and not slip %}
+        {% comment %}
+          The shortest form that can produce a booking a receptionist can honour: a
+          name to greet, a number to call. Passport, address and card belong at the
+          desk, where there is somebody to check them.
+
+          The action carries ?hotel= because that is where the tenant middleware
+          looks — never the body.
+        {% endcomment %}
+        <form method="post" action="?hotel={{ hotel.code }}#book-direct"
+              class="online-guest" id="book-direct">
+          {% csrf_token %}
+          <input type="hidden" name="hotel" value="{{ hotel.code }}">
+          <input type="hidden" name="check_in" value="{{ stay.check_in|date:'Y-m-d' }}">
+          <input type="hidden" name="nights" value="{{ stay.nights }}">
+          <input type="hidden" name="adults" value="{{ stay.adults }}">
+          <input type="hidden" name="children" value="{{ stay.children }}">
+          <input type="hidden" name="rooms" value="{{ stay.rooms }}">
+          <input type="hidden" name="room" value="{{ chosen.code }}">
+
+          <div class="card-title-ashos mb-0">Who is staying</div>
+          <label class="online-field">
+            <span>Name</span>
+            <input type="text" name="guest_name" maxlength="120" required>
+          </label>
+          <label class="online-field">
+            <span>Mobile</span>
+            <input type="tel" name="guest_phone" maxlength="32" required>
+          </label>
+          <label class="online-field">
+            <span>Email <i>optional</i></span>
+            <input type="email" name="guest_email" maxlength="254">
+          </label>
+          <label class="online-field online-field--wide">
+            <span>Anything we should know <i>optional</i></span>
+            <input type="text" name="requests" maxlength="500">
+          </label>
+          <button class="btn btn-accent btn-lg" type="submit">Confirm booking</button>
+          {% comment %}
+            The property's own payment terms, not a hardcoded sentence. "No card
+            needed, paid at the desk" was true of the default and false about any
+            hotel that asks for an advance — and it was the only place on the page
+            that said anything about money, so a guest asking the assistant instead
+            got an escalation to a member of staff who does not exist here.
+          {% endcomment %}
+          <ul class="online-pay">
+            {% for line in payment.lines %}<li>{{ line }}</li>{% endfor %}
+          </ul>
+        </form>
+        {% endif %}
+      </section>
+
+      <section class="glass-card online-panel">
+        <div class="online-panel__head">
+          <span class="online-step">2</span>
+          <div>
+            <div class="card-title-ashos mb-0">The bill</div>
+            <p class="online-panel__hint">Same quote the front desk would give you.</p>
+          </div>
+        </div>
+
+        {% if chosen %}
+          <dl class="online-bill">
+            <dt>{{ chosen.room_type.name }}</dt>
+            <dd>{{ stay.rooms }} × {{ stay.nights }} night{{ stay.nights|pluralize }}</dd>
+
+            {% comment %}
+              Night by night, because that is how a hotel prices: a Friday costs
+              more than a Tuesday and a season boundary can fall mid-stay.
+            {% endcomment %}
+            {% for night in chosen.quote.per_night %}
+            <dt class="online-bill__night">{{ night.day|date:"D d M" }}</dt>
+            <dd class="online-bill__night">{{ hotel.currency }} {{ night.amount|floatformat:2 }}</dd>
+            {% endfor %}
+
+            <dt>Room total</dt>
+            <dd>{{ hotel.currency }} {{ chosen.quote.room_total|floatformat:2 }}</dd>
+            {% if chosen.quote.extra_person_total %}
+            <dt>Extra guests</dt>
+            <dd>{{ hotel.currency }} {{ chosen.quote.extra_person_total|floatformat:2 }}</dd>
+            {% endif %}
+            <dt>Service charge ({{ hotel.service_charge_rate|floatformat:0 }}%)</dt>
+            <dd>{{ hotel.currency }} {{ chosen.quote.service_amount|floatformat:2 }}</dd>
+            <dt>VAT ({{ hotel.tax_rate|floatformat:0 }}%)</dt>
+            <dd>{{ hotel.currency }} {{ chosen.quote.tax_amount|floatformat:2 }}</dd>
+
+            <dt class="online-bill__total">Total</dt>
+            <dd class="online-bill__total">
+              {{ hotel.currency }} {{ chosen.quote.grand_total|floatformat:2 }}
+            </dd>
+          </dl>
+          <p class="online-panel__hint">
+            VAT is charged on the service-inclusive amount, which is how a
+            Bangladesh hotel bill is built.
+          </p>
+        {% else %}
+          <div class="not-yet">Pick a room and the bill appears here, itemised.</div>
+        {% endif %}
+
+        {% comment %}
+          The payment terms belong in the panel about money, and they belong there
+          BEFORE a room is chosen: "when do I pay, and how" is a question a guest
+          answers for themselves before they commit to anything, not after.
+        {% endcomment %}
+        <ul class="online-pay">
+          {% for line in payment.lines %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+      </section>
+
+      <section class="glass-card online-panel">
+        <div class="online-panel__head">
+          <span class="online-step">3</span>
+          <div>
+            <div class="card-title-ashos mb-0">Your slip</div>
+            <p class="online-panel__hint">Show this at reception when you arrive.</p>
+          </div>
+        </div>
+
+        {% if slip.reservation %}
+        {% with reservation=slip.reservation %}
+          <div class="online-slip" id="online-slip">
+            <div class="online-slip__ref">
+              <span>Reference</span>
+              <b>{{ reservation.code }}</b>
+            </div>
+            <dl class="online-bill">
+              <dt>Guest</dt><dd>{{ reservation.guest.full_name }}</dd>
+              <dt>Mobile</dt><dd>{{ reservation.guest.phone }}</dd>
+              <dt>Arriving</dt><dd>{{ reservation.check_in|date:"D d M Y" }}</dd>
+              <dt>Leaving</dt><dd>{{ reservation.check_out|date:"D d M Y" }}</dd>
+              <dt>Nights</dt><dd>{{ reservation.nights }}</dd>
+              {% for allocation in slip.allocations %}
+              <dt>Room</dt>
+              <dd>
+                {{ allocation.room_type.name }}
+                {% if allocation.room %}· {{ allocation.room.number }}{% endif %}
+              </dd>
+              {% endfor %}
+              <dt>Status</dt><dd>{{ reservation.get_status_display }}</dd>
+              <dt class="online-bill__total">Payable</dt>
+              <dd class="online-bill__total">
+                {{ hotel.currency }} {{ reservation.grand_total|floatformat:2 }}
+              </dd>
+            </dl>
+
+            {% if slip.lines %}
+            <div class="online-slip__folio">
+              <div class="card-title-ashos mb-0">On your folio</div>
+              {% for line in slip.lines %}
+              <div class="online-slip__line">
+                <span>{{ line.description }}</span>
+                <b>{{ hotel.currency }} {{ line.total|floatformat:2 }}</b>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {% comment %}
+              On the slip the guest prints and brings with them, so the terms travel
+              with the reference number rather than living only on the screen they
+              booked from.
+            {% endcomment %}
+            <div class="online-slip__pay">
+              <span class="pill">{{ payment.badge }}</span>
+              <ul class="online-pay">
+                {% for line in payment.lines %}<li>{{ line }}</li>{% endfor %}
+              </ul>
+            </div>
+          </div>
+
+          <div class="online-slip__actions">
+            <button class="btn btn-accent" type="button" onclick="window.print()">Print slip</button>
+            <a class="btn btn-ghost" href="?hotel={{ hotel.code }}">Book another room</a>
+          </div>
+        {% endwith %}
+        {% else %}
+          <div class="not-yet">
+            Your reference appears here the moment the room is held. Nothing is
+            charged online.
+          </div>
+        {% endif %}
+      </section>
+    </div>
+  </details>
+
+  <footer class="online-foot">
+    {{ hotel.name }}{% if hotel.address_line1 %} · {{ hotel.address_line1 }}{% endif %}
+    {% if hotel.city %} · {{ hotel.city }}{% endif %}
+    {% if hotel.phone %} · {{ hotel.phone }}{% endif %}
+  </footer>
+
+  {% comment %}
+    No kiosk-devices.js: the camera/microphone/speaker pickers are a lobby rig's
+    control. Staff pick the webcam on the stand and the powered speaker once at
+    install, because the browser's "default" is regularly the wrong one on a
+    machine with four audio devices in it. A guest on their own phone or laptop has
+    one microphone and has already chosen it — three dropdowns asking them to
+    re-pick their own hardware is a setup screen in front of a booking, and the
+    script that fills them had nothing to bind to here anyway.
+
+    kiosk.js copes with the bar being absent by design (see `devices()`): the
+    microphone opens on the browser's default device and audio plays out of the
+    browser's default output, which on a personal device is the right answer.
+
+    No kiosk-enrol.js either: face capture is a lobby flow, and a web page asking
+    to photograph somebody at home is not a flow anybody designed.
+  {% endcomment %}
+  <script src="{% asset 'js/kiosk.js' %}" defer></script>
+  <script>
+    // Time in the header, in the conversation's language.
+    (() => {
+      const time = document.getElementById('kiosk-time');
+      const root = document.getElementById('kiosk');
+      if (!time || !root) return;
+      const locale = () => ((root.dataset.language || 'en') === 'bn' ? 'bn-BD' : 'en-GB');
+      const tick = () => {
+        time.textContent = new Date().toLocaleTimeString(locale(), {
+          hour: '2-digit', minute: '2-digit',
+        });
+      };
+      tick();
+      setInterval(tick, 15000);
+      document.addEventListener('ashos:language', tick);
+    })();
+  </script>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -1,0 +1,131 @@
+{% load i18n %}{% comment %}
+  The default receptionist: original artwork, drawn here rather than shipped as a
+  photograph.
+
+  Why it is illustrated and not a real face. A stock portrait means putting a
+  person who does not exist in front of guests as though they were staff, using a
+  likeness nobody licensed to us. A hotel that wants a real photograph uploads
+  one (Settings -> AI, "kiosk avatar") and it replaces this. Their image, their
+  consent, their brand.
+
+  Why it moves. A still figure on a lobby screen reads as a poster, and people do
+  not talk to posters. The motion is small on purpose — breathing, blinking, a
+  slight sway — because a lobby panel that animates hard is exhausting to stand
+  in front of. The mouth only moves while an answer is actually being spoken, so
+  the movement is information rather than decoration.
+
+  Every animated part is driven from CSS keyed on the state machine
+  (#kiosk-avatar[data-state]), so nothing here needs JavaScript and it all stops
+  under prefers-reduced-motion.
+{% endcomment %}
+<svg class="figure" viewBox="0 0 300 400" role="img"
+     aria-label="{% trans 'Illustrated AI receptionist' %}" preserveAspectRatio="xMidYMax meet">
+  <defs>
+    <linearGradient id="fig-jacket" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#243356"/>
+      <stop offset="100%" stop-color="#131c33"/>
+    </linearGradient>
+    <linearGradient id="fig-hair" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4a2f26"/>
+      <stop offset="55%" stop-color="#33201a"/>
+      <stop offset="100%" stop-color="#241511"/>
+    </linearGradient>
+    <linearGradient id="fig-skin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0c3a1"/>
+      <stop offset="100%" stop-color="#dda579"/>
+    </linearGradient>
+    <linearGradient id="fig-desk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a2a20"/>
+      <stop offset="100%" stop-color="#1b120c"/>
+    </linearGradient>
+    <radialGradient id="fig-halo" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="rgba(129,140,248,.45)"/>
+      <stop offset="70%" stop-color="rgba(99,102,241,.10)"/>
+      <stop offset="100%" stop-color="rgba(99,102,241,0)"/>
+    </radialGradient>
+    {% comment %} Keeps the hair from spilling over the face when it sways. {% endcomment %}
+    <clipPath id="fig-face-clip">
+      <ellipse cx="150" cy="150" rx="52" ry="63"/>
+    </clipPath>
+  </defs>
+
+  <ellipse class="figure__halo" cx="150" cy="185" rx="132" ry="150" fill="url(#fig-halo)"/>
+
+  {% comment %} One group so breathing lifts the whole figure, not just the chest. {% endcomment %}
+  <g class="figure__body">
+    <path class="figure__hair-back" d="M150 66c-40 0-62 27-62 70 0 30 4 52 8 74h108c4-22 8-44 8-74 0-43-22-70-62-70Z"
+          fill="url(#fig-hair)"/>
+
+    {% comment %} Shoulders and jacket. Drawn wide and low so the figure reads as
+      seated at a desk rather than floating. {% endcomment %}
+    <path d="M150 236c-46 0-84 26-96 62-5 15-8 32-9 52h210c-1-20-4-37-9-52-12-36-50-62-96-62Z"
+          fill="url(#fig-jacket)"/>
+    <path d="M150 236c-13 0-25 2-36 6l36 60 36-60c-11-4-23-6-36-6Z" fill="#f4f7fc"/>
+    <path d="M114 242 150 302l-14 48h-12l-22-104c3-2 7-3 12-4Z" fill="#1a2540"/>
+    <path d="M186 242 150 302l14 48h12l22-104c-3-2-7-3-12-4Z" fill="#1a2540"/>
+    <path class="figure__collar" d="M132 232h36l-18 22-18-22Z" fill="#e7ecf6"/>
+
+    <rect x="136" y="196" width="28" height="44" rx="12" fill="#dda579"/>
+
+    {% comment %} Head. Sways and tilts with the state; the face is clipped so the
+      side hair can overlap it without covering an eye. {% endcomment %}
+    <g class="figure__head">
+      <ellipse cx="150" cy="150" rx="52" ry="63" fill="url(#fig-skin)"/>
+      <g clip-path="url(#fig-face-clip)">
+        <path d="M98 128c0-38 22-58 52-58s52 20 52 58c-8-22-26-32-52-32s-44 10-52 32Z"
+              fill="url(#fig-hair)"/>
+      </g>
+
+      <path class="figure__brow" d="M124 134c6-4 16-4 22 0" fill="none" stroke="#3b2622"
+            stroke-width="3.4" stroke-linecap="round"/>
+      <path class="figure__brow" d="M154 134c6-4 16-4 22 0" fill="none" stroke="#3b2622"
+            stroke-width="3.4" stroke-linecap="round"/>
+
+      <g class="figure__eyes">
+        <g class="figure__eye">
+          <ellipse cx="135" cy="149" rx="10" ry="6.5" fill="#fdfefe"/>
+          <circle class="figure__iris" cx="135" cy="149" r="4.6" fill="#3f2d23"/>
+          <circle cx="136.6" cy="147.4" r="1.5" fill="#fff" opacity=".85"/>
+          {% comment %} The lid. Scaled down to nothing, then snapped shut to blink —
+            cheaper and steadier than animating a path. {% endcomment %}
+          <ellipse class="figure__lid" cx="135" cy="149" rx="10.6" ry="7"
+                   fill="url(#fig-skin)"/>
+        </g>
+        <g class="figure__eye">
+          <ellipse cx="165" cy="149" rx="10" ry="6.5" fill="#fdfefe"/>
+          <circle class="figure__iris" cx="165" cy="149" r="4.6" fill="#3f2d23"/>
+          <circle cx="166.6" cy="147.4" r="1.5" fill="#fff" opacity=".85"/>
+          <ellipse class="figure__lid" cx="165" cy="149" rx="10.6" ry="7"
+                   fill="url(#fig-skin)"/>
+        </g>
+      </g>
+
+      <path d="M150 156v12c0 3-2 5-5 6" fill="none" stroke="#c98f66" stroke-width="2.4"
+            stroke-linecap="round"/>
+
+      {% comment %} Mouth. Closed by default; only opens while an answer is being
+        spoken, so the movement means something. {% endcomment %}
+      <g class="figure__mouth">
+        <path class="figure__lips" d="M138 182c5 5 19 5 24 0" fill="none" stroke="#b4685c"
+              stroke-width="3.2" stroke-linecap="round"/>
+        <ellipse class="figure__mouth-open" cx="150" cy="184" rx="11" ry="7" fill="#8d4a44"/>
+      </g>
+
+      <ellipse cx="120" cy="166" rx="7" ry="5" fill="#e79c7f" opacity=".35"/>
+      <ellipse cx="180" cy="166" rx="7" ry="5" fill="#e79c7f" opacity=".35"/>
+
+      {% comment %} Side hair, drawn last so it falls in front of the shoulders. {% endcomment %}
+      <path d="M98 132c-8 34-6 62 2 92 10-26 8-56 6-84Z" fill="url(#fig-hair)"/>
+      <path d="M202 132c8 34 6 62-2 92-10-26-8-56-6-84Z" fill="url(#fig-hair)"/>
+    </g>
+
+    {% comment %} Hands folded on the desk: the posture of somebody waiting to
+      help, and it anchors the figure to the surface. {% endcomment %}
+    <path d="M108 348c8-8 22-12 42-12s34 4 42 12c4 4 6 8 6 12h-96c0-4 2-8 6-12Z"
+          fill="#e3ab80"/>
+    <path d="M132 352h36" stroke="#c98f66" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <rect y="360" width="300" height="40" fill="url(#fig-desk)"/>
+  <rect y="358" width="300" height="3" fill="rgba(255,255,255,.10)"/>
+</svg>

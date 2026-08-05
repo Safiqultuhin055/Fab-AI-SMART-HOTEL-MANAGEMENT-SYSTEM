@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h5 mb-1">{% trans "Guests" %}</h1>
+    <div class="text-muted" style="font-size:.78rem">
+      {% blocktrans count counter=total %}{{ counter }} guest profile{% plural %}{{ counter }} guest profiles{% endblocktrans %}
+    </div>
+  </div>
+  <a class="btn btn-ghost btn-sm" href="/admin/guests/guest/add/">{% trans "Add guest" %}</a>
+</div>
+
+<div class="glass-card mb-3">
+  <form method="get" class="d-flex flex-wrap gap-2">
+    <input class="form-control" name="q" value="{{ query }}" style="max-width:320px"
+           placeholder="{% trans 'Name, phone or email…' %}">
+    <select class="form-select" name="tier" style="max-width:200px">
+      <option value="">{% trans "All tiers" %}</option>
+      {% for value, label in tiers %}
+        <option value="{{ value }}" {% if tier == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-accent" type="submit">{% trans "Search" %}</button>
+    {% if query or tier %}<a class="btn btn-ghost" href="{% url 'guests:home' %}">{% trans "Clear" %}</a>{% endif %}
+  </form>
+</div>
+
+<div class="glass-card glass-card--flush">
+  <div style="overflow-x:auto">
+    <table class="table-ashos">
+      <thead>
+        <tr>
+          <th>{% trans "Name" %}</th><th>{% trans "Contact" %}</th><th>{% trans "Nationality" %}</th>
+          <th>{% trans "Tier" %}</th><th>{% trans "Stays" %}</th><th>{% trans "Lifetime spend" %}</th>
+          <th>{% trans "Last stay" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for guest in page_obj %}
+        <tr>
+          <td>
+            <a href="/admin/guests/guest/{{ guest.pk }}/change/">{{ guest.full_name }}</a>
+            {% if guest.is_blacklisted %}<span class="pill pill--danger">{% trans "blacklisted" %}</span>{% endif %}
+          </td>
+          <td class="text-muted">{{ guest.phone|default:"—" }}<br><span style="font-size:.72rem">{{ guest.email|default:"" }}</span></td>
+          <td class="text-muted">{{ guest.nationality|default:"—" }}</td>
+          <td>
+            {% if guest.tier == 'vip' or guest.tier == 'platinum' %}
+              <span class="pill pill--warn">{{ guest.get_tier_display }}</span>
+            {% else %}<span class="pill">{{ guest.get_tier_display }}</span>{% endif %}
+          </td>
+          <td>{{ guest.total_stays }}</td>
+          <td>{{ hotel.currency }} {{ guest.total_spend|floatformat:0 }}</td>
+          <td class="text-muted">{{ guest.last_stay_at|date:"d M Y"|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-muted">{% trans "No guests match that search." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="d-flex justify-content-between align-items-center mt-3" style="font-size:.82rem">
+  <div class="text-muted">
+    {% blocktrans with start=page_obj.start_index end=page_obj.end_index total=page_obj.paginator.count %}
+      {{ start }}–{{ end }} of {{ total }}
+    {% endblocktrans %}
+  </div>
+  <div class="d-flex gap-2">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&tier={{ tier }}">{% trans "Previous" %}</a>
+    {% endif %}
+    {% if page_obj.has_next %}
+      <a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ query }}&tier={{ tier }}">{% trans "Next" %}</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

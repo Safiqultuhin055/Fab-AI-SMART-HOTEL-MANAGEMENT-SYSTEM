@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h5 mb-1">{% trans "Settings" %}</h1>
+    <div class="text-muted" style="font-size:.78rem">{% trans "Hotel profile, staff access and roles" %}</div>
+  </div>
+  <a class="btn btn-ghost btn-sm" href="/admin/tenants/hotel/">{% trans "Edit in admin" %}</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="glass-card h-100">
+      <div class="card-title-ashos">{% trans "Hotel profile" %}</div>
+      {% if hotel %}
+      <table class="table-ashos">
+        <tbody>
+          <tr><td class="text-muted">{% trans "Code" %}</td><td>{{ hotel.code }}</td></tr>
+          <tr><td class="text-muted">{% trans "Name" %}</td><td>{{ hotel.name }}</td></tr>
+          <tr><td class="text-muted">{% trans "City" %}</td><td>{{ hotel.city }} · {{ hotel.country }}</td></tr>
+          <tr><td class="text-muted">{% trans "Rooms" %}</td><td>{{ hotel.total_rooms }}</td></tr>
+          <tr><td class="text-muted">{% trans "Star rating" %}</td><td>{{ hotel.star_rating }}</td></tr>
+          <tr><td class="text-muted">{% trans "Currency" %}</td><td>{{ hotel.currency }}</td></tr>
+          <tr><td class="text-muted">{% trans "Timezone" %}</td><td>{{ hotel.timezone }}</td></tr>
+          <tr><td class="text-muted">{% trans "Check-in / out" %}</td><td>{{ hotel.check_in_time }} → {{ hotel.check_out_time }}</td></tr>
+          <tr><td class="text-muted">{% trans "VAT / service" %}</td><td>{{ hotel.tax_rate }}% / {{ hotel.service_charge_rate }}%</td></tr>
+          <tr><td class="text-muted">{% trans "Plan" %}</td><td>{{ hotel.get_plan_display }}</td></tr>
+        </tbody>
+      </table>
+      {% else %}
+      <div class="not-yet">{% trans "No hotel bound to this session." %}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="glass-card mb-3">
+      <div class="card-title-ashos">{% trans "AI posture" %}</div>
+      {% if hotel %}
+      <table class="table-ashos">
+        <tbody>
+          <tr>
+            <td class="text-muted">{% trans "AI enabled" %}</td>
+            <td>{% if hotel.ai_enabled %}<span class="pill pill--ok">{% trans "yes" %}</span>{% else %}<span class="pill">{% trans "no" %}</span>{% endif %}</td>
+          </tr>
+          <tr>
+            <td class="text-muted">{% trans "Kill switch" %}</td>
+            <td>{% if hotel.ai_kill_switch %}<span class="pill pill--danger">{% trans "engaged" %}</span>{% else %}<span class="pill pill--ok">{% trans "off" %}</span>{% endif %}</td>
+          </tr>
+          <tr>
+            <td class="text-muted">{% trans "Face recognition" %}</td>
+            <td>
+              {% if hotel.biometric_enabled %}<span class="pill pill--warn">{% trans "enabled" %}</span>
+              {% else %}<span class="pill">{% trans "disabled" %}</span>{% endif %}
+            </td>
+          </tr>
+          <tr><td class="text-muted">{% trans "Daily AI budget" %}</td><td>${{ hotel.ai_daily_cost_cap_usd }}</td></tr>
+        </tbody>
+      </table>
+      <p class="text-muted mt-2" style="font-size:.78rem; line-height:1.6">
+        {% trans "Biometrics stay off until legal sign-off is recorded. Face check-in must always have a non-biometric alternative." %}
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "Properties" %}</div>
+      <table class="table-ashos">
+        <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Name" %}</th><th>{% trans "Rooms" %}</th></tr></thead>
+        <tbody>
+          {% for h in hotels %}
+          <tr {% if hotel and h.pk == hotel.pk %}style="color:var(--accent-strong)"{% endif %}>
+            <td>{{ h.code }}</td><td>{{ h.name }}</td><td class="text-muted">{{ h.total_rooms }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="glass-card glass-card--flush">
+      <div class="p-3 pb-0"><div class="card-title-ashos">{% trans "Staff access" %}</div></div>
+      <div style="overflow-x:auto">
+        <table class="table-ashos">
+          <thead><tr><th>{% trans "Name" %}</th><th>{% trans "Email" %}</th><th>{% trans "Role" %}</th><th>{% trans "Code" %}</th></tr></thead>
+          <tbody>
+            {% for m in memberships %}
+            <tr>
+              <td>{{ m.user.full_name }}</td>
+              <td class="text-muted">{{ m.user.email }}</td>
+              <td><span class="pill">{{ m.role.name }}</span></td>
+              <td class="text-muted">{{ m.user.employee_code|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-muted">{% trans "No staff assigned to this hotel." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="glass-card glass-card--flush h-100">
+      <div class="p-3 pb-0"><div class="card-title-ashos">{% trans "Roles" %}</div></div>
+      <div style="overflow-x:auto">
+        <table class="table-ashos">
+          <thead><tr><th>{% trans "Role" %}</th><th>{% trans "Permissions" %}</th><th>{% trans "Members" %}</th></tr></thead>
+          <tbody>
+            {% for role in roles %}
+            <tr>
+              <td>{{ role.name }}</td>
+              <td class="text-muted">{{ role.permission_count }}</td>
+              <td class="text-muted">{{ role.member_count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

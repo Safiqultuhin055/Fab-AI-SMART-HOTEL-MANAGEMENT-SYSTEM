@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% load static i18n assets %}
+
+{% block extra_head %}<link rel="stylesheet" href="{% asset 'css/kiosk.css' %}">{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h5 mb-1">{% trans "AI Reception" %}</h1>
+    <div class="text-muted" style="font-size:.78rem">
+      {% trans "Live kiosk, handoff queue and conversation log" %}
+      {% if hotel %} · {{ hotel.name }}{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener"
+       href="{% url 'reception:kiosk' %}{% if hotel %}?hotel={{ hotel.code }}{% endif %}">
+      {% trans "Open lobby kiosk" %} ↗
+    </a>
+  </div>
+</div>
+
+{% comment %}
+  Same widget the lobby terminal runs, embedded so staff can try a question and
+  see exactly what a guest sees. Testing the concierge should not require
+  walking to the lobby.
+{% endcomment %}
+{% include "reception/_kiosk_panel.html" with channel="web" %}
+
+<div class="row g-3 mt-1">
+  <div class="col-6 col-lg-3">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Conversations (24h)" %}</div>
+      <div class="kpi__value">{{ stats.total }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Resolved by AI" %}</div>
+      <div class="kpi__value">{{ stats.self_service_rate|floatformat:0 }}%</div>
+      <div class="kpi__delta text-muted">{% trans "target ≥ 70%" %}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Handed to staff" %}</div>
+      <div class="kpi__value">{{ stats.handed_off }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card kpi">
+      <div class="kpi__label">{% trans "Avg turns" %}</div>
+      <div class="kpi__value">{{ stats.avg_turns|floatformat:1 }}</div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="glass-card glass-card--flush h-100">
+      <div class="p-3 pb-0 d-flex justify-content-between align-items-center">
+        <div class="card-title-ashos mb-0">{% trans "Handoff queue" %}</div>
+        <span class="pill {% if queue %}pill--warn{% else %}pill--ok{% endif %}">{{ queue|length }}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="table-ashos">
+          <thead><tr><th>{% trans "Guest" %}</th><th>{% trans "Reason" %}</th><th>{% trans "Waiting" %}</th><th></th></tr></thead>
+          <tbody>
+            {% for item in queue %}
+            <tr>
+              <td>{{ item.conversation.guest_name|default:_("Walk-up guest") }}</td>
+              <td class="text-muted">{{ item.get_reason_display }}</td>
+              <td>{{ item.waiting_seconds }}s</td>
+              <td class="text-end">
+                {% if item.claimed_by %}
+                  <span class="pill">{{ item.claimed_by.get_short_name }}</span>
+                {% else %}
+                  <button class="btn btn-ghost btn-sm js-claim" data-id="{{ item.pk }}">{% trans "Claim" %}</button>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-muted">{% trans "Nobody waiting. The AI is handling everything." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="glass-card glass-card--flush h-100">
+      <div class="p-3 pb-0"><div class="card-title-ashos">{% trans "Recent conversations (24h)" %}</div></div>
+      <div style="overflow-x:auto">
+        <table class="table-ashos">
+          <thead>
+            <tr>
+              <th>{% trans "Started" %}</th><th>{% trans "Guest" %}</th><th>{% trans "Channel" %}</th>
+              <th>{% trans "Turns" %}</th><th>{% trans "Cost" %}</th><th>{% trans "Status" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for convo in recent %}
+            <tr>
+              <td class="text-muted">{{ convo.started_at|date:"H:i" }}</td>
+              <td>{{ convo.guest_name|default:_("Walk-up guest") }}</td>
+              <td class="text-muted">{{ convo.get_channel_display }}</td>
+              <td>{{ convo.turn_count }}</td>
+              <td class="text-muted">${{ convo.total_cost_usd|floatformat:5 }}</td>
+              <td>
+                {% if convo.status == 'handoff' %}<span class="pill pill--warn">{{ convo.get_status_display }}</span>
+                {% elif convo.status == 'resolved' %}<span class="pill pill--ok">{{ convo.get_status_display }}</span>
+                {% else %}<span class="pill">{{ convo.get_status_display }}</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-muted">{% trans "No conversations yet. Try the kiosk above." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="glass-card">
+      <div class="card-title-ashos">{% trans "What is not built yet" %}</div>
+      <p class="text-muted mb-0" style="font-size:.84rem; line-height:1.7">
+        {% trans "Working now: text conversation grounded in your hotel record with source citations, guardrails (blocked topics, repeat detection, turn and token caps), automatic and manual handoff, full transcript and per-conversation cost. Voice needs a speech provider key. Face recognition, passport OCR and the RAG knowledge base arrive in Phases 2–3; the panels beside the kiosk say so rather than showing a mock." %}
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% comment %}
+  Devices first: kiosk.js reads window.ashosDevices when it opens a microphone.
+
+  kiosk-face.js used to be loaded here and no longer exists — the camera-first
+  entry screen it drove was replaced by the post-booking consent flow, which the
+  staff console deliberately does not offer. A stale tag here was a 404 on every
+  console page load.
+{% endcomment %}
+<script src="{% asset 'js/kiosk-devices.js' %}" defer></script>
+<script src="{% asset 'js/kiosk.js' %}" defer></script>
+<script>
+  // Claim a queued handoff. Small enough to live here; it grows into its own
+  // module when the queue gets real-time updates over WebSocket in P2.
+  document.querySelectorAll('.js-claim').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const csrf = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+      const response = await fetch('/api/v1/reception/queue/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf ? csrf[1] : '' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id: button.dataset.id, action: 'claim' }),
+      });
+      if (response.ok) window.location.reload();
+    });
+  });
+</script>
+{% endblock %}

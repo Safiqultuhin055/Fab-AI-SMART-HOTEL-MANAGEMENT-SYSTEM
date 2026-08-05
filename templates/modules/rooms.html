@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="board-head">
+  <div>
+    <h1 class="h5 mb-1">{% trans "Rooms & Inventory" %}</h1>
+    <div class="board-head__sub">
+      {{ summary.occupied }}/{{ summary.total_rooms }} {% trans "occupied tonight" %}
+      ({{ summary.occupancy_rate|floatformat:0 }}%) ·
+      {{ summary.available }} {% trans "sellable tonight" %}
+      · {{ today|date:"D d M" }}
+    </div>
+  </div>
+  <a class="btn btn-ghost btn-sm" href="/admin/rooms/room/">{% trans "Manage in admin" %}</a>
+</div>
+
+{% comment %}
+  The filter bar, and the legend, and the property's position — one row, because
+  they are the same three facts. The dot colours here are the colours on the tiles
+  below, which is what makes a legend unnecessary.
+
+  Counted across the whole property, never across the filtered board: numbers that
+  move every time somebody narrows the view stop being the property's position.
+
+  Sticky, so filtering still works when you are three floors down the page.
+{% endcomment %}
+<div class="board-bar">
+  <div class="board-bar__states">
+    <a class="state-chip {% if not booking_filter %}is-on{% endif %}"
+       href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if type_filter %}type={{ type_filter }}{% endif %}">
+      <span class="state-chip__count">{{ counts.total }}</span>
+      <span class="state-chip__label">{% trans "All rooms" %}</span>
+    </a>
+    {% for value, label in booking_filters %}
+      <a class="state-chip state-chip--{{ value }} {% if booking_filter == value %}is-on{% endif %}"
+         href="?booking={{ value }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">
+        <span class="state-chip__count">
+          {% if value == 'sold' %}{{ counts.sold }}
+          {% elif value == 'booked' %}{{ counts.booked }}
+          {% elif value == 'blocked' %}{{ counts.blocked }}
+          {% else %}{{ counts.free }}{% endif %}
+        </span>
+        <span class="state-chip__label">
+          <span class="room-dot room-dot--{{ value }}"></span>{{ label }}
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+
+  <form method="get" class="board-bar__filters">
+    {% if booking_filter %}<input type="hidden" name="booking" value="{{ booking_filter }}">{% endif %}
+    <select class="form-select form-select-sm" name="status" onchange="this.form.submit()">
+      <option value="">{% trans "All statuses" %}</option>
+      {% for value, label in statuses %}
+        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-select form-select-sm" name="type" onchange="this.form.submit()">
+      <option value="">{% trans "All room types" %}</option>
+      {% for type in types %}
+        <option value="{{ type.code }}" {% if type_filter == type.code %}selected{% endif %}>
+          {{ type.name }} ({{ type.room_count }})
+        </option>
+      {% endfor %}
+    </select>
+    {% if status_filter or type_filter or booking_filter %}
+      <a class="btn btn-ghost btn-sm" href="{% url 'rooms:home' %}">{% trans "Clear" %}</a>
+    {% endif %}
+  </form>
+</div>
+
+{% comment %}
+  Floor by floor. Each room carries its type's photograph, so moving somebody to
+  402 does not mean opening another page to see what 402 is.
+
+  Two states, kept apart on purpose:
+
+    sold / booked / free / blocked   whether it can be sold, from the reservations
+    clean / dirty / OOO              the physical state, from housekeeping
+
+  A spotless room can be sold and a dirty one can be free tonight. Collapsing the
+  two into one colour is how a walk-in gets sold a bed that is already gone.
+
+  The grid is auto-fill rather than Bootstrap columns: a tile is a photograph and
+  wants a width, not a twelfth of whatever the viewport happens to be.
+{% endcomment %}
+<div id="room-floors">
+{% for group in floors %}
+<div class="glass-card mb-3">
+  <div class="floor-head">
+    <div class="card-title-ashos mb-0">{% blocktrans with floor=group.floor %}Floor {{ floor }}{% endblocktrans %}</div>
+    <div class="floor-head__counts">
+      {% if group.counts.sold %}<span><span class="room-dot room-dot--sold"></span>{{ group.counts.sold }}</span>{% endif %}
+      {% if group.counts.booked %}<span><span class="room-dot room-dot--booked"></span>{{ group.counts.booked }}</span>{% endif %}
+      {% if group.counts.free %}<span><span class="room-dot room-dot--free"></span>{{ group.counts.free }}</span>{% endif %}
+      {% if group.counts.blocked %}<span><span class="room-dot room-dot--blocked"></span>{{ group.counts.blocked }}</span>{% endif %}
+      <span class="floor-head__total">{{ group.rooms|length }} {% trans "rooms" %}</span>
+    </div>
+  </div>
+
+  <div class="room-grid">
+    {% for entry in group.rooms %}
+    <div class="room-tile room-tile--{{ entry.state }}" tabindex="0"
+         aria-label="{{ entry.room.number }} · {{ entry.room.room_type.name }} · {{ entry.state_label }}">
+      {% if entry.photo %}
+        {% comment %}
+          The number sits over the photograph on a scrim: it is what somebody scans
+          the board for, and it has to stay readable over whatever was uploaded.
+        {% endcomment %}
+        <div class="room-tile__figure">
+          <img class="room-tile__photo" src="{{ entry.photo.url }}"
+               alt="{{ entry.room.room_type.name }}" loading="lazy">
+          <span class="room-tile__number">{{ entry.room.number }}</span>
+          <span class="room-tile__type">{{ entry.room.room_type.code }}</span>
+        </div>
+      {% else %}
+        <div class="room-tile__figure room-tile__figure--blank">
+          <span class="room-tile__number">{{ entry.room.number }}</span>
+          <span class="room-tile__type">{{ entry.room.room_type.code }}</span>
+          <span class="room-tile__nophoto">{% trans "No photo" %}</span>
+        </div>
+      {% endif %}
+
+      <div class="room-tile__body">
+        <span class="pill {% if entry.state == 'sold' %}pill--info{% elif entry.state == 'booked' %}pill--warn{% elif entry.state == 'blocked' %}pill--danger{% else %}pill--ok{% endif %}">
+          {% if entry.state == 'sold' %}{% trans "Booked" %}
+          {% elif entry.state == 'booked' %}{% trans "Booked ahead" %}
+          {% elif entry.state == 'blocked' %}{% trans "Out of service" %}
+          {% else %}{% trans "Free" %}{% endif %}
+        </span>
+
+        <div class="room-tile__status">{{ entry.room.get_status_display }}</div>
+
+        {% if entry.guest %}
+          <div class="room-tile__who">{{ entry.guest.full_name }}</div>
+          <div class="room-tile__when">{% trans "until" %} {{ entry.until|date:"d M" }}</div>
+        {% elif entry.next_arrival %}
+          {% comment %}
+            Free tonight, gone by Friday. Without this line the room reads as
+            available and somebody sells it twice.
+          {% endcomment %}
+          <div class="room-tile__who">{{ entry.next_guest.full_name }}</div>
+          <div class="room-tile__when">{% trans "from" %} {{ entry.next_arrival|date:"d M" }}</div>
+        {% else %}
+          <div class="room-tile__when">{{ entry.room.room_type.name }}</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% empty %}
+<div class="glass-card"><div class="not-yet">{% trans "No rooms match that filter." %}</div></div>
+{% endfor %}
+</div>
+
+<div class="glass-card">
+  <div class="card-title-ashos">{% trans "Room types & rates" %}</div>
+  <div style="overflow-x:auto">
+    <table class="table-ashos">
+      <thead>
+        <tr>
+          <th style="width:76px"></th>
+          <th>{% trans "Type" %}</th><th>{% trans "Code" %}</th><th>{% trans "Rooms" %}</th>
+          <th>{% trans "Sleeps" %}</th><th>{% trans "Bed" %}</th><th>{% trans "View" %}</th>
+          <th>{% trans "Base rate" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for type in types %}
+        <tr>
+          <td>
+            {% if type.lead_photo %}
+              <img class="room-thumb" src="{{ type.lead_photo.url }}"
+                   alt="{{ type.name }}" loading="lazy">
+            {% else %}
+              <span class="room-thumb room-thumb--blank">—</span>
+            {% endif %}
+          </td>
+          <td>{{ type.name }}</td>
+          <td class="text-muted">{{ type.code }}</td>
+          <td>{{ type.room_count }}</td>
+          <td class="text-muted">{{ type.base_occupancy }}–{{ type.max_occupancy }}</td>
+          <td class="text-muted">{{ type.get_bed_type_display }}</td>
+          <td class="text-muted">{{ type.view|default:"—" }}</td>
+          <td>{{ hotel.currency }} {{ type.base_rate|floatformat:0 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-muted mt-2 mb-0" style="font-size:.72rem">
+    {% trans "Photos live on the room type — admin → Room types → (a type) → photos, or import_room_photos." %}
+  </p>
+</div>
+{% endblock %}

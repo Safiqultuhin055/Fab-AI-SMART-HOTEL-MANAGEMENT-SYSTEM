@@ -1,0 +1,377 @@
+{% comment %}
+  The kiosk widget itself. Shared by the staff console (/reception/) and the
+  full-screen lobby terminal (/reception/kiosk/) so there is exactly one
+  implementation to keep correct.
+
+  data-* attributes carry server state into kiosk.js; the script never guesses
+  whether AI or voice is available.
+{% endcomment %}
+
+<div class="kiosk" id="kiosk"
+     data-ai-state="{{ ai_status.state }}"
+     {% comment %}
+       Voice availability is read from the SPEECH configuration, not from the
+       chat model. A hotel can have a working LLM and no speech key, and the
+       kiosk must not offer a microphone that fails on the first press.
+     {% endcomment %}
+     data-voice="{% if speech.stt %}true{% else %}false{% endif %}"
+     data-tts="{% if speech.tts %}true{% else %}false{% endif %}"
+     data-channel="{{ channel|default:'kiosk' }}"
+     data-hotel="{{ hotel.code|default:'' }}"
+     {% comment %}
+       The PROPERTY's kiosk language, not Django's active locale. Sending
+       LANGUAGE_CODE here meant the browser told the server "en" on every start,
+       silently overriding a hotel configured for Bangla — so it greeted in
+       Bangla and then answered in English.
+
+       data-speech-lang is the BCP-47 tag the browser's speech engines want; they
+       will not accept a bare "bn".
+     {% endcomment %}
+     data-language="{{ speech.language }}"
+     data-speech-lang="{{ speech.bcp47 }}"
+     data-presence="{% if kiosk.presence %}true{% else %}false{% endif %}"
+     data-capture="{% if kiosk.capture %}true{% else %}false{% endif %}"
+     {% comment %}
+       Every guest-facing string the chrome can show, in the guest's language.
+       English hardcoded in kiosk.js is how a Bangla kiosk ends up saying
+       "Thinking…" underneath a Bangla answer.
+
+       data-copy is the active language, which is what almost all of the script
+       reads. data-copy-all is BOTH, because the guest changes language by tapping
+       a chip and every label on the screen has to follow inside the same second —
+       fetching the other half at that moment means a visible English flash on a
+       screen whose whole job is to feel like talking to somebody.
+     {% endcomment %}
+     data-copy="{{ kiosk_copy_json }}"
+     data-copy-all="{{ kiosk_copy_all_json }}"
+     data-panels="{{ vision_panels_json }}"
+     data-hands-free="{% if kiosk.hands_free %}true{% else %}false{% endif %}"
+     {% comment %}
+       Whether a member of staff can be brought into this conversation, and how long
+       the assistant waits in silence before asking the next question itself. Both
+       are properties of the channel, decided in apps/reception/panel.py — the script
+       must not infer "is anybody watching this" from the page it happens to be on.
+     {% endcomment %}
+     data-staffed="{% if kiosk.staffed %}true{% else %}false{% endif %}"
+     data-nudge-after="{{ kiosk.nudge_after }}"
+     data-voice-gender="{{ voice.gender }}"
+     data-voice-name="{{ voice.name }}">
+
+  <div class="kiosk-stage">
+    {% comment %}
+      The widget's own header, for the staff console only. On the terminal the
+      page has a real header — hotel, clock, devices, model — and a second title
+      bar under it was 55px of nothing, directly above the conversation it was
+      pushing down.
+    {% endcomment %}
+    {% if channel == 'web' %}
+    <div class="kiosk-stage__header">
+      {% comment %}
+        Guest-facing text is {{ kiosk_copy.<key> }} throughout this file, never
+        {% templatetag openblock %} trans {% templatetag closeblock %}: Django
+        resolves that against the request's locale, and the language here belongs
+        to the conversation — a guest taps a chip and it changes mid-session, with
+        no request in sight. Every one of these ids is also relabelled by
+        kiosk.js when that happens.
+      {% endcomment %}
+      <div class="kiosk-stage__title" id="kiosk-title">{{ kiosk_copy.kiosk_title }}</div>
+      {% include "reception/_device_bar.html" %}
+    </div>
+    {% endif %}
+
+    {% comment %}
+      The scene. A lobby photograph behind, a figure on one side, the conversation
+      floating over the top — the layout a guest recognises from a video call
+      rather than a form.
+
+      Every id in here is a JS hook and none of them moved: #kiosk-avatar,
+      #kiosk-state, #kiosk-bubbles, #kiosk-wave, #kiosk-mic, #kiosk-mic-hint,
+      #kiosk-mute, #kiosk-input. This is a restyle, not a rewrite.
+    {% endcomment %}
+    <div class="scene{% if hotel.kiosk_backdrop %} has-backdrop{% endif %}"
+         {% if hotel.kiosk_backdrop %}style="--backdrop:url('{{ hotel.kiosk_backdrop.url }}')"{% endif %}>
+
+      {% comment %}
+        There was a badge here — "AI Assistant / AI failing — answering from hotel
+        data". It is gone on purpose.
+
+        Whether the provider is up, degraded or unconfigured is an operator's
+        problem, and the operator has it: the console topbar, the dashboard and AI
+        Center all carry the state. A guest standing in a lobby cannot act on it,
+        and telling them the machine is failing while it is answering them
+        perfectly well from the hotel record undermines the answer they just got.
+
+        The state itself is still on #kiosk as data-ai-state, because the script
+        reads it to decide whether the microphone and the answer path are live.
+      {% endcomment %}
+
+      <div class="scene__figure avatar" id="kiosk-avatar" data-state="idle">
+        {% if hotel.kiosk_avatar %}
+          {% comment %}
+            The property's own portrait. aria-hidden because it carries no
+            information a screen reader needs — the state below it does.
+          {% endcomment %}
+          <img class="scene__portrait" src="{{ hotel.kiosk_avatar.url }}" alt="" aria-hidden="true">
+        {% else %}
+          {% comment %}
+            No portrait uploaded, so the drawn one. Illustrated rather than a stock
+            photograph because a stock face means presenting a person who does not
+            exist as staff, using a likeness nobody licensed to us.
+          {% endcomment %}
+          {% include "reception/_kiosk_avatar.html" %}
+        {% endif %}
+        <div class="scene__nameplate">
+          {% if hotel %}<b>{{ hotel.name }}</b>{% endif %}
+          <span class="avatar__state" id="kiosk-state" role="status" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <div class="scene__panel">
+        <div class="kiosk-bubbles" id="kiosk-bubbles" aria-live="polite"
+             aria-label="{{ kiosk_copy.aria_conversation }}"></div>
+
+        <div class="kiosk-voice">
+          <div class="waveform" id="kiosk-wave" aria-hidden="true"></div>
+
+          {% comment %}
+            The microphone is docked, not laid out in the flow. On the lobby
+            terminal it is position:fixed so it cannot be scrolled away, covered by
+            a long conversation, or pushed off a short screen — a guest talking to
+            a kiosk needs to see that it is listening at all times, and a control
+            that disappears reads as one that stopped working.
+
+            Fixed only in kiosk mode. A floating dock inside the staff console's
+            dashboard would be an overlay nobody asked for.
+          {% endcomment %}
+          <div class="scene__mic mic-dock">
+            {% comment %}
+              The label says what pressing it does, which depends on the page. Where
+              the microphone opens itself the button is stop/resume, so "Tap to
+              speak" would send a screen-reader user hunting for a control they
+              never needed and describe the opposite of what it now does.
+            {% endcomment %}
+            <button class="mic-button" id="kiosk-mic" type="button"
+                    aria-label="{% if kiosk.hands_free %}{{ kiosk_copy.mic_stop }}{% else %}{{ kiosk_copy.tap }}{% endif %}">
+              <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">
+                <path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"/>
+                <path fill="currentColor" d="M18 12a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.06A8 8 0 0 0 20 12h-2Z"/>
+              </svg>
+            </button>
+            <div class="mic-hint" id="kiosk-mic-hint">{{ kiosk_copy.tap }}</div>
+          </div>
+        </div>
+      </div>
+
+      {% comment %}
+        The rooms, pictured, in the empty half of the scene beside the
+        conversation.
+
+        A guest is being asked to agree to "DLX · 18216 BDT" — a code and a
+        number that describe nothing they can see. This is the part of the screen
+        that answers "what am I booking".
+
+        Empty and hidden until a booking turn sends rooms, so a guest asking
+        about the wifi never sees it. Populated only from the server's priced
+        snapshot: the kiosk cannot picture a room type the hotel does not sell,
+        and cannot picture the wrong one, because it does not choose which room
+        this is — the validated draft does.
+
+        Photos are the hotelier's own uploads (Room type → photos in admin). A
+        type with none shows its facts on a plain tile rather than a stock
+        bedroom, because a stock bedroom is a picture of a room this guest will
+        not be given.
+      {% endcomment %}
+      <aside class="scene__rooms is-hidden" id="kiosk-rooms" aria-live="polite">
+        {% comment %}
+          card-title-ashos, not a heading style of its own: this panel sits on the
+          same screen as the booking card and the vision cards, and a second
+          definition of "panel title" is how two of them drift apart.
+        {% endcomment %}
+        <div class="rooms__head">
+          <span class="card-title-ashos mb-0" id="kiosk-rooms-title"></span>
+        </div>
+        <div class="rooms__list" id="kiosk-rooms-list"></div>
+      </aside>
+
+      <div class="scene__footer">
+        <span class="scene__chip scene__chip--hint">
+          <span aria-hidden="true">💡</span>
+          {% comment %}
+            A property that wrote its own hint owns those words in whatever
+            language it wrote them; the relabeller must not overwrite them with a
+            translation of the default.
+          {% endcomment %}
+          <span id="kiosk-hint"{% if hotel.kiosk_hint %} data-custom="true"{% endif %}>{{ hotel.kiosk_hint|default:kiosk_copy.hint }}</span>
+        </span>
+
+        <div class="scene__controls">
+          {% comment %}
+            "Voice: Female" from the reference, as a control that actually does
+            something. Defaults to the property setting and is remembered for this
+            terminal — a guest who prefers the other voice should not have to ask
+            a manager to change a database row.
+          {% endcomment %}
+          {% comment %}
+            The way out of a dead end. Speech recognition listens in ONE language
+            at a time, so a guest speaking Bangla into an English-tuned recogniser
+            gets a transcript of Latin noise — meaning they cannot even be heard
+            asking to switch. Typing works, but somebody standing at a kiosk
+            without a Bangla keyboard has no route at all.
+
+            One tap. It pins the language on the server, retunes what the
+            microphone listens for, and says so out loud in the new language.
+          {% endcomment %}
+          <label class="scene__chip scene__chip--select" for="kiosk-lang-pick">
+            <span aria-hidden="true">🌐</span>
+            <select id="kiosk-lang-pick" aria-label="{{ kiosk_copy.language_label }}">
+              <option value="bn">বাংলা</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+
+          <label class="scene__chip scene__chip--select" for="kiosk-voice-pick">
+            <span aria-hidden="true">🔈</span>
+            <span id="kiosk-voice-label">{{ kiosk_copy.voice_label }}:</span>
+            <select id="kiosk-voice-pick" aria-label="{{ kiosk_copy.voice_label }}">
+              <option value="female">{{ kiosk_copy.voice_female }}</option>
+              <option value="male">{{ kiosk_copy.voice_male }}</option>
+              <option value="any">{{ kiosk_copy.voice_any }}</option>
+            </select>
+          </label>
+
+          {% comment %}
+            Not disabled from the template. speech.tts only says whether a paid
+            provider exists; the browser can speak without one, and only the
+            browser knows that — so kiosk.js decides.
+          {% endcomment %}
+          <button class="scene__chip scene__chip--btn" id="kiosk-mute" type="button"
+                  aria-pressed="false" title="{{ kiosk_copy.mute_title }}">🔊</button>
+          <span class="scene__chip scene__chip--btn" id="kiosk-turns-chip"
+                title="{{ kiosk_copy.turns }}">
+            <span id="kiosk-turns-label">{{ kiosk_copy.turns }}</span>: <b id="kiosk-turns">0</b>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <form class="kiosk-composer" id="kiosk-form" autocomplete="off">
+      {% comment %}
+        Doubles as the transcript box: what speech recognition hears lands here
+        as it is heard, so a guest who is not being understood can see that
+        before they finish the sentence.
+      {% endcomment %}
+      <input id="kiosk-input" type="text" maxlength="2000"
+             placeholder="{{ kiosk_copy.placeholder }}"
+             aria-label="{{ kiosk_copy.aria_message }}">
+      <button class="btn btn-accent px-3" id="kiosk-send" type="submit">{{ kiosk_copy.send }}</button>
+      {% comment %}
+        Always reachable, never buried. goal.txt R7: a guest who does not want
+        to talk to a machine must be one tap from a person.
+
+        Only where a person exists to be reached. On the public booking page nobody
+        is watching the conversation, so this button queued a request no one would
+        ever claim and the guest sat waiting for somebody who was never coming. R7 is
+        met there by the reception telephone number in the page header — a way to
+        reach a person that does not depend on staff watching a queue.
+      {% endcomment %}
+      {% if kiosk.staffed %}
+      <button class="btn btn-ghost px-3" id="kiosk-human" type="button">{{ kiosk_copy.human }}</button>
+      {% endif %}
+      <button class="btn btn-ghost px-3" id="kiosk-reset" type="button"
+              title="{{ kiosk_copy.reset_title }}">↺</button>
+    </form>
+
+    {% comment %}
+      Quick actions. Each one is a real prompt, so a guest who taps rather than
+      speaks travels the same answer path — nothing here is a shortcut around the
+      assistant.
+
+      Sized for a finger on a wall-mounted screen rather than a mouse: the whole
+      card is the target, not the label inside it.
+    {% endcomment %}
+    <div class="kiosk-tiles">
+      {% for tile in tiles %}
+      <button class="tile" type="button" data-tile="{{ tile.key }}" data-prompt="{{ tile.prompt }}">
+        <span class="tile__icon" aria-hidden="true">{{ tile.icon }}</span>
+        <span class="tile__label">{{ tile.label }}</span>
+        <span class="tile__sub">{{ tile.sub }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="kiosk-rail">
+    {% comment %}
+      The booking card. Hidden until the assistant is actually taking one, then
+      it holds the six facts the guest would otherwise have to keep in their
+      head while answering questions one at a time. Every value here comes from
+      the server's validated draft — never from what the assistant said.
+    {% endcomment %}
+    <div class="glass-card vision-card d-none" id="kiosk-booking">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="card-title-ashos mb-0" id="kiosk-booking-title">{{ kiosk_copy.booking_title }}</div>
+        <span class="pill" id="kiosk-booking-state">{{ kiosk_copy.booking_draft }}</span>
+      </div>
+      {% comment %}
+        How far through the booking the guest is. Four steps, in the order the
+        assistant asks for them, so somebody being asked a fifth question can see
+        it is the last one rather than wondering how long this goes on.
+
+        Filled by kiosk.js from the same validated draft the rows below come from.
+      {% endcomment %}
+      <ol class="progress-steps" id="kiosk-progress" aria-label="{{ kiosk_copy.progress_title }}">
+        {% for key, label in progress_steps %}
+        <li class="progress-step" data-step="{{ key }}">
+          <span class="progress-step__dot" aria-hidden="true"></span>
+          <span class="progress-step__label">{{ label }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+
+      <dl class="booking-draft" id="kiosk-booking-rows"></dl>
+      <p class="booking-draft__note d-none" id="kiosk-booking-note"></p>
+    </div>
+
+    {% comment %}
+      The rest of the rail depends on where this widget is embedded. The terminal
+      and the console show the arrival's vision steps; the public booking page
+      shows the bill and the slip, because a guest booking from home has no
+      passport to scan into it and does have a total to check.
+    {% endcomment %}
+    {% if rail == 'online' %}
+      {% include "booking/_online_rail.html" %}
+    {% else %}
+    {% for panel in vision_panels %}
+    <div class="glass-card vision-card" data-panel="{{ panel.key }}">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="card-title-ashos mb-0" data-panel-title>{{ panel.title }}</div>
+        {% if panel.enabled %}
+          <span class="pill pill--ok" data-panel-pill>{{ kiosk_copy.pill_ready }}</span>
+        {% else %}
+          <span class="pill">{{ panel.phase }}</span>
+        {% endif %}
+      </div>
+      {% if panel.camera %}
+        {% comment %}
+          The still taken on the welcome screen. The live camera lives in the
+          capture stage, not here — two <video> elements sharing one id is a bug
+          waiting to happen, and the rail only ever needs the frozen frame.
+        {% endcomment %}
+        <div class="vision-card__frame is-watching" id="kiosk-cam-frame">
+          <img id="kiosk-shot-thumb" class="vision-cam d-none" alt="{{ kiosk_copy.guest_photo_alt }}">
+          <span class="vision-cam__status" id="kiosk-shot-status">
+            {{ kiosk_copy.waiting_guest }}
+          </span>
+        </div>
+      {% else %}
+        <div class="vision-card__frame {% if panel.enabled %}is-enabled{% endif %}" data-panel-blank>
+          {{ kiosk_copy.not_enabled }}
+        </div>
+      {% endif %}
+      <p class="text-muted mt-2 mb-0" style="font-size:.74rem; line-height:1.5"
+         data-panel-note>{{ panel.note }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>

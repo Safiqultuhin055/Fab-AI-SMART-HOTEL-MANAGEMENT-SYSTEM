@@ -1,0 +1,282 @@
+================================================================================
+ASHOS — AI SMART HOTEL OS
+PROJECT GOAL & EXECUTION CONTRACT
+================================================================================
+Version      : 1.0
+Date         : 2026-08-02
+Owner        : ai@dbl-digital.com
+Derived from : ASHOS_Project_Concept.md (SRS blueprint v2.0)
+               Prompt.txt (product brief)
+               Prototype.png (UI reference — single-screen dashboard mock)
+Status       : LOCKED baseline. Changes only via Change Request (see §9).
+================================================================================
+
+
+--------------------------------------------------------------------------------
+1. NORTH-STAR GOAL (one sentence)
+--------------------------------------------------------------------------------
+Build a production-ready, multi-tenant-capable, AI-native Hotel Operating System
+in Django 5 + PostgreSQL/pgvector where the AI Receptionist (voice + text + face
++ OCR + RAG) is the primary interface, backed by a complete PMS core
+(rooms, reservations, folio/billing, housekeeping, restaurant), operable by a
+real hotel every single day without workarounds.
+
+Success is NOT "features demoed". Success is: a pilot hotel runs ASHOS in
+parallel with their paper register for one month and then throws the register
+away.
+
+
+--------------------------------------------------------------------------------
+2. SOURCE ANALYSIS — WHAT THE THREE INPUTS AGREE / DISAGREE ON
+--------------------------------------------------------------------------------
+
+2.1 AGREEMENT (hard requirements, all three sources)
+  - AI is the interface, not an add-on. AI Reception = Module #1 priority.
+  - Stack: Python 3.13/3.12, Django 5, DRF, Celery, Redis, WebSocket, JWT, RBAC.
+  - DB: PostgreSQL + pgvector. Vectors live in the same ACID database.
+  - AI: OpenAI-compatible LLM API, RAG, Sentence Transformers, Whisper, TTS,
+    CLIP image vectors, InsightFace, PaddleOCR.
+  - Frontend: Bootstrap 5 + vanilla ES6 (+ Alpine.js / HTMX). NOT React/Vue.
+  - Storage: MinIO / S3-compatible. Deploy: Docker Compose + Nginx + TLS.
+  - Modules: AI Reception, Reservation, Rooms, Guest PWA, Housekeeping,
+    Restaurant, Billing, AI Center, Vision, RAG + Image Vector Search.
+  - Clean architecture: apps/ + api/ + services/ + repositories/.
+  - AI Center is the control plane — change AI behaviour with no code deploy.
+
+2.2 DISAGREEMENT — RESOLVED HERE (this file wins)
+  | Topic              | Prompt.txt        | SRS v2.0          | DECISION        |
+  |--------------------|-------------------|-------------------|-----------------|
+  | Object Detection   | in scope          | Phase 3 deferred  | DEFERRED (P3)   |
+  | Multi-property     | SaaS, 1000s hotels| single-property   | tenant_id in    |
+  |                    |                   |                   | schema from day1|
+  |                    |                   |                   | UI single-tenant|
+  | Guest app          | "Mobile App"      | PWA               | PWA             |
+  | Housekeeping AI    | "AI predicts"     | weighted rules    | rule engine MVP |
+  | Refund / Corporate | in scope          | not listed        | Phase 4         |
+  | Digital Key        | in scope          | door lock out     | OUT (hardware)  |
+  | Full Accounting    | —                 | out of scope      | OUT (export CSV)|
+  | Channel Manager    | —                 | out of scope      | OUT (Phase 2+)  |
+  | Payroll / HRM      | —                 | out of scope      | OUT             |
+
+  Rationale for tenant_id-from-day-1: retrofitting multi-tenancy into a schema
+  with 40+ tables and 3 vector indexes is a rewrite. Adding a nullable-then-
+  enforced tenant FK now costs ~2 days. SaaS ambition (Prompt.txt) is honoured
+  at the data layer; the UI ships single-property to protect the timeline.
+
+2.3 PROTOTYPE.PNG — BINDING UI CONTRACT
+  The mock is one poster containing many screens. Decomposed into real screens:
+  S1  Admin Dashboard   : KPI strip (Check-ins, Occupancy, Revenue, Rooms
+                          Available, RevPAR, AI Concierge status), Room Status
+                          donut (Occupied/Available/Dirty/Maintenance),
+                          Recent Bookings table, AI Insights row (5 cards).
+  S2  AI Reception Kiosk: full-screen avatar, speech bubble, waveform,
+                          push-to-talk mic, 5 action tiles (Check-in, Room Info,
+                          Hotel Services, Tourist Guide, Feedback).
+  S3  Vision Sidebar    : Face Recognition card (bbox + welcome-back),
+                          Document OCR card (passport fields + Verified badge),
+                          Object Detection card (Phase 3, hidden in MVP).
+  S4  AI Concierge      : RAG chat with numbered SOURCE CITATIONS (mandatory).
+  S5  Image Vector Srch : natural-language box -> image result grid.
+  S6  Housekeeping      : today's priority queue w/ High/Medium/Low badge +
+                          "Auto Assign Tasks".
+  S7  Room Recommend    : hero room card + % match score + Book Now.
+  S8  Billing & Reminder: folio summary, due amount, countdown to checkout,
+                          SMS/WhatsApp/Push reminder trigger.
+  S9  Guest PWA         : home, AI chat, bill/pay (3 phone frames).
+  Left nav (locked order): Dashboard · AI Reception · Guests · Rooms &
+  Inventory · Reservations · Housekeeping · Restaurant & POS · Billing &
+  Finance · AI Center · Reports & Analytics · Settings.
+  Design language: dark-first, glassmorphism, indigo/violet accent, rounded
+  cards, Chart.js, floating AI assistant. Light mode required (WCAG AA both).
+  NOTE: SRS §Admin Dashboard says "Billing is not a separate menu"; the
+  prototype shows one. PROTOTYPE WINS — Billing & Finance is a top-level menu.
+
+
+--------------------------------------------------------------------------------
+3. LOCKED TECHNICAL DECISIONS
+--------------------------------------------------------------------------------
+D01  Python 3.12 (not 3.13/3.14) — torch / paddleocr / insightface wheels are
+     not reliably published for 3.13+. Revisit at Phase 3.
+D02  Django 5.x + DRF + drf-spectacular (OpenAPI 3.1) + SimpleJWT.
+D03  ASGI everywhere (Daphne/Uvicorn) — Channels WebSocket for voice + chat.
+D04  PostgreSQL 16 + pgvector, HNSW indexes (not IVFFlat — no training step).
+D05  Every table: UUIDv7-style PK, created_at/updated_at, soft delete where it
+     matters, tenant_id FK, audit trail on mutating admin actions.
+D06  services/ layer holds ALL business logic. Views/serializers/tasks are thin.
+     NO view, task, template tag, or model method may call an AI SDK directly.
+D07  Single AI gateway: services/ai/ exposes chat(), embed(), transcribe(),
+     speak(), caption(). Vendor swap = one config row, zero code change.
+D08  Vector dimensions are config-recorded (ai_model_config.dimension). Model
+     change => explicit re-embed migration job, never a silent mismatch.
+D09  Face pipeline REQUIRES liveness before enrolment or match. No exceptions.
+D10  Biometrics are opt-in only, embedding-only (raw image discarded), encrypted
+     at rest, with expires_at + a Celery Beat purge job + delete-me API.
+D11  AI never executes money movement or refunds. It proposes; a human approves.
+D12  Graceful degradation: if the LLM provider is down, the PMS still works in
+     manual mode. Kill Switch in AI Center flips it instantly.
+D13  Offline: kiosk queues check-ins locally (IndexedDB) and syncs on reconnect.
+D14  tests/ai_eval/ regression suite gates every prompt change (>=30 questions).
+D15  12-factor config: .env only, no secrets in git, django-environ.
+D16  Idempotency-Key header mandatory on payment + booking POSTs.
+D17  RFC 7807 problem+json error envelope on all API errors.
+D18  Cursor pagination on all list endpoints.
+
+
+--------------------------------------------------------------------------------
+4. SCOPE
+--------------------------------------------------------------------------------
+4.1 IN — MVP
+  Auth/RBAC/Audit · Hotel & Tenant profile · Rooms, Room Types, Rate Plans,
+  Seasonal Pricing · Guest profile + documents + consent ledger · Reservation
+  (online + walk-in) + availability with DB-level double-booking prevention ·
+  Check-in / Check-out (manual, QR, face) · Digital signature capture ·
+  Folio, Invoice, Tax/VAT, Payments (cash/card/bKash/Nagad), Split bill,
+  Night audit · Housekeeping queue + weighted priority engine + photo proof ·
+  Restaurant (menu, dine-in + room-service order, KDS, post-to-folio) ·
+  AI Reception (text chat, voice, avatar, human handoff) · AI Concierge RAG
+  with citations · Face recognition + liveness + enrolment · Passport/NID OCR
+  with MRZ checksum · CLIP hotel-image semantic search · AI Room Recommendation
+  · Lost & Found image match · AI Center (models, versioned prompts, knowledge
+  base, observability, safety, kill switch) · Guest PWA · Notifications
+  (SMS/WhatsApp/Push/Email) · Analytics dashboard (Chart.js) · Docker deploy.
+
+4.2 OUT — not in MVP, no negotiation without a Change Request
+  Payroll/HRM · full double-entry accounting · inventory/store · channel
+  manager (Booking.com/Agoda) · multi-property UI · banquet/events · object
+  detection · physical door-lock / digital key · native iOS/Android app ·
+  self-hosted LLM training/fine-tuning · POS hardware drivers.
+
+
+--------------------------------------------------------------------------------
+5. PHASE PLAN & EXIT CRITERIA (~30 weeks, buffer included)
+--------------------------------------------------------------------------------
+P0  FOUNDATION                                            weeks 1-3
+    Repo skeleton, settings split, Docker stack (postgres+pgvector, redis,
+    minio, web, worker, beat, nginx), custom User + RBAC + audit, DRF + JWT +
+    OpenAPI, base templates + design system, services/ai gateway, CI, legal
+    check on biometrics, LLM cost/latency PoC.
+    EXIT: `docker compose up` gives a login, a themed shell matching the
+    prototype, a working /api/v1/ai/health/ round-trip to a real LLM, and a
+    measured cost-per-1k-tokens number written into the repo.
+
+P1  CORE PMS (works with AI switched off)                 weeks 4-9
+    Rooms/types/rates · Guests · Reservations + availability · manual
+    check-in/out · Folio/Invoice/Payments · Dashboard v1 with real KPIs.
+    EXIT: a hotel could be run manually on ASHOS. No AI required. No stubs.
+
+P2  AI LAYER                                              weeks 10-16
+    AI Center (models, versioned prompts, KB, logs, kill switch) · RAG pipeline
+    (chunk, embed, hybrid retrieve, cite) · AI Concierge text · Whisper STT +
+    TTS voice loop over WebSocket · avatar · OCR · ai_eval suite.
+    EXIT: 50 real guest questions -> >=90% correct answers with citations;
+    first-token < 1.5s; voice round-trip < 3s.
+
+P3  VISION & VECTOR SEARCH                                weeks 17-21
+    Face detect + liveness + consent enrolment + face check-in · CLIP image
+    indexing · semantic image search · AI room recommendation · lost & found.
+    EXIT: face match >=95% accuracy in good light, <1s; image search top-5
+    relevance >=80% on a 20-query benchmark; every biometric rule in D10 proven
+    by an automated test.
+
+P4  GUEST APP & AUTOMATION                                weeks 22-26
+    Guest PWA · restaurant + room service · housekeeping priority engine ·
+    notifications · proactive checkout reminder (T-12h) · analytics/predictions.
+    EXIT: a guest completes order -> bill -> checkout entirely from the phone.
+
+P5  HARDENING & PILOT                                     weeks 27-30
+    Load test (100 concurrent sessions, 500 rooms) · security audit ·
+    backup/restore drill (RPO 1h / RTO 4h) · docs · staff training · live pilot.
+    EXIT: pilot hotel operating daily, without workarounds, for 30 days.
+
+
+--------------------------------------------------------------------------------
+6. NON-FUNCTIONAL TARGETS (measured, not aspirational)
+--------------------------------------------------------------------------------
+  AI first token          < 1.5 s          Voice round-trip      < 3 s
+  Face identification     < 1 s            Page load p95         < 2 s
+  Vector search @1M rows  < 200 ms         Concurrent sessions   100+
+  Uptime                  99.5%            Rooms / instance      500
+  Backup                  daily full + WAL RPO/RTO               1h / 4h
+  Test coverage           >70% overall, >85% in services/
+  AI cost                 hard budget cap per guest-stay + alert
+  Accessibility           WCAG 2.1 AA, kiosk wheelchair height, voice-first
+  Languages day-1         Bangla + English (UI); AI understands bn/en/hi/ar/zh
+
+
+--------------------------------------------------------------------------------
+7. DEFINITION OF DONE (every single PR)
+--------------------------------------------------------------------------------
+  [ ] Business logic lives in services/, not in the view/task/model.
+  [ ] Type hints on public functions; docstring says WHY, not what.
+  [ ] Unit tests for the service; integration test for the endpoint.
+  [ ] Migration included, reversible, and applied cleanly on a fresh DB.
+  [ ] OpenAPI schema regenerates without warnings.
+  [ ] Permission class + tenant scoping asserted by a test (negative case too).
+  [ ] Audit-logged if it mutates money, biometrics, or permissions.
+  [ ] No secret, no key, no model weight committed.
+  [ ] ruff + black + mypy clean; CI green.
+  [ ] If it touches a prompt: tests/ai_eval/ re-run and score not regressed.
+
+
+--------------------------------------------------------------------------------
+8. KPI — WHEN WE CALL IT A SUCCESS
+--------------------------------------------------------------------------------
+  Guest questions resolved by AI without handoff      >= 70%
+  Average check-in time                               <  2 min (vs 5-8 today)
+  Face recognition accuracy (production)              >= 95%
+  OCR field accuracy                                  >= 90%
+  Guest satisfaction (post-stay)                      >= 4.2 / 5
+  Housekeeping turnaround reduction                   >= 20%
+  AI cost per guest-stay                              within budget
+  Pilot staff using it daily without workarounds      yes / no  <- the real one
+
+
+--------------------------------------------------------------------------------
+9. RISKS & GOVERNANCE
+--------------------------------------------------------------------------------
+  R1  Biometric law (BD DPA / GDPR for foreign guests)  -> legal sign-off in P0;
+      face is OPTIONAL by design so a "no" costs a feature, not the product.
+  R2  InsightFace pretrained weights are non-commercial -> licence audit in P0;
+      commercial alternative pre-identified before P3 starts.  BLOCKING ITEM.
+  R3  LLM cost overrun            -> P0 cost model, caching, cheap-model routing.
+  R4  Voice latency               -> streaming, warm connections, edge TTS.
+  R5  Scope creep                 -> §4.2 is the contract. Change Request only:
+                                     written impact on scope/date/cost, signed,
+                                     before any code.
+  R6  Hallucination               -> context-only prompt, citations, ai_eval.
+  R7  Guest rejects AI            -> "Talk to a human" button on every screen.
+  R8  Internet outage             -> offline queue + local fallback.
+  R9  Small team / bus factor     -> docs, review, zero undocumented magic.
+  R10 LLM vendor lock-in          -> D07 gateway.
+
+
+--------------------------------------------------------------------------------
+10. OPEN QUESTIONS — ANSWER BEFORE THE PHASE THAT NEEDS THEM
+--------------------------------------------------------------------------------
+  Q1 (P0) LLM: cloud API or self-hosted? Which provider + budget/month?
+  Q2 (P0) GPU available? If no, Whisper/CLIP/InsightFace all become API calls.
+  Q3 (P0) Biometric storage legally cleared?                      -> BLOCKER R1
+  Q4 (P1) Payment gateway: bKash / Nagad / SSLCommerz / Stripe?
+  Q5 (P0) Pilot hotel confirmed? Name, room count, contact.
+  Q6 (P0) Team size and skills for a 30-week plan?
+  Q7 (—)  Multi-tenant answered: tenant_id ships day 1, UI single-property.
+  Q8 (P2) Confirm day-1 AI languages — drives embedding model choice.
+  DEFAULTS IF UNANSWERED: cloud OpenAI-compatible API, CPU-only, face features
+  built but shipped disabled, SSLCommerz sandbox, no pilot -> synthetic data.
+
+
+--------------------------------------------------------------------------------
+11. IMMEDIATE NEXT ACTIONS (P0)
+--------------------------------------------------------------------------------
+  1. Repo skeleton + requirements + .env.example + .gitignore + README.
+  2. config/ settings split (base/dev/prod), asgi, wsgi, celery.
+  3. apps/core: base model (UUID pk, timestamps, tenant, soft delete), mixins.
+  4. apps/accounts: custom User, Role/RBAC, AuditLog, permissions.
+  5. api/v1: DRF router, JWT, drf-spectacular, RFC7807 handler, pagination.
+  6. deploy/: docker compose (postgres+pgvector, redis, minio, web, worker,
+     beat, nginx) + Dockerfile + entrypoint.
+  7. services/ai: provider-agnostic gateway + health endpoint + cost meter.
+  8. templates/: dark glassmorphism base shell + locked left nav (prototype S1).
+  9. CI: ruff, black, mypy, pytest.
+ 10. Written answers to Q1-Q6.
+================================================================================

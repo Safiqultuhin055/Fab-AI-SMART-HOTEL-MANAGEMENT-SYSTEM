@@ -1,0 +1,53 @@
+{% comment %}
+  The booking page's rail: the bill, then the slip.
+
+  Both are filled by kiosk.js from the SAME validated draft the booking card above
+  is drawn from — the assistant's own words are never a source for a number here.
+  The bill appears when the assistant has settled on a room; the slip appears when
+  a reservation actually exists, which is the moment `code` arrives in the payload.
+{% endcomment %}
+<div class="glass-card vision-card d-none" id="online-bill-card">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <div class="card-title-ashos mb-0">{{ kiosk_copy.bill_title }}</div>
+    <span class="pill" id="online-bill-state">{{ kiosk_copy.bill_estimate }}</span>
+  </div>
+  <dl class="booking-draft" id="online-bill-rows"></dl>
+  <p class="text-muted mt-2 mb-0" style="font-size:.72rem; line-height:1.5">
+    {{ kiosk_copy.bill_note }}
+  </p>
+</div>
+
+<div class="glass-card vision-card d-none" id="online-slip-card">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <div class="card-title-ashos mb-0">{{ kiosk_copy.slip_title }}</div>
+    <span class="pill pill--ok">{{ kiosk_copy.slip_ready }}</span>
+  </div>
+
+  <div class="online-slip">
+    <div class="online-slip__ref">
+      <span>{{ kiosk_copy.slip_reference }}</span>
+      <b id="online-slip-ref">—</b>
+    </div>
+    <dl class="booking-draft" id="online-slip-rows"></dl>
+    <p class="text-muted mb-0" style="font-size:.72rem; line-height:1.5">
+      {{ kiosk_copy.slip_note }}
+    </p>
+    {% comment %}
+      The payment terms, on the card the guest is looking at when the reference
+      number arrives — the moment they ask "so when do I pay?". Server-rendered from
+      the property's settings rather than written by kiosk.js: it is the same text the
+      assistant cites, and two renderers is two wordings.
+    {% endcomment %}
+    {% if payment.lines %}
+    <ul class="online-pay">
+      {% for line in payment.lines %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="online-slip__actions mt-2">
+    <button class="btn btn-accent btn-sm" type="button" onclick="window.print()">
+      {{ kiosk_copy.slip_print }}
+    </button>
+  </div>
+</div>
