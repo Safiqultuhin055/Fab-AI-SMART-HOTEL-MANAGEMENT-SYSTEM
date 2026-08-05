@@ -243,9 +243,13 @@ class TestKioskChrome:
         assert "const pool = sameLang.length ? sameLang : voices;" not in source
         assert "const pool = voicesFor(speechLang);" in source
 
-        # speakInBrowser refuses rather than mispronouncing...
+        # speakInBrowser refuses rather than mispronouncing. The utterance itself is
+        # built in speakChunk now — an answer is spoken one sentence at a time — so the
+        # refusal has to come before the first chunk is ever handed over.
         block = source[source.index("const speakInBrowser") :]
-        assert block.index("if (!voice)") < block.index("new SpeechSynthesisUtterance")
+        block = block[: block.index("\n  };")]
+        assert block.index("if (!voice)") < block.index("speakChunk(")
+        assert "return false;" in block
         # ...and the guest is told once, instead of being met with silence.
         assert "const warnNoVoice" in source
         assert "warnedLanguages.has(base)" in source

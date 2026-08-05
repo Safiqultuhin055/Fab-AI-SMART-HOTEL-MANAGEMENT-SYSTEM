@@ -560,29 +560,93 @@
   let playbackWatchdog = null;
 
   const stopSpeaking = () => {
-    if (player) player.pause();
+    // pause() is not enough to stop a detached <audio>. `new Audio(blob:…)` is never
+    // in the document, so nothing tears it down when the page goes: the media stack
+    // keeps the element alive until playback ends, and a paused element still holds
+    // the decoded stream. Clearing the source and calling load() is what actually
+    // makes it let go — and the blob URL has to be revoked or every answer leaks one.
+    if (player) {
+      try {
+        player.pause();
+        const source = player.currentSrc || player.src;
+        player.removeAttribute('src');
+        player.load();
+        if (source && source.startsWith('blob:')) URL.revokeObjectURL(source);
+      } catch (error) {
+        /* already torn down */
+      }
+      player = null;
+    }
     // Not gated on browserTts. That flag says which engine we would CHOOSE to speak
     // with; it says nothing about what is queued. Cancelling an empty queue costs
     // nothing, and the gate meant every stop path — the guest leaving, a language
     // switch, the tab being hidden — silently skipped the one engine that outlives
     // the page. speechSynthesis is a browser-process queue: whatever is in it keeps
     // reading after the tab is gone unless somebody cancels it.
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (window.speechSynthesis) {
+      // resume() before cancel(): a PAUSED synthesiser ignores cancel() in Chrome,
+      // and the tab going into the background is one of the things that pauses it.
+      // The stop that matters most is the one issued to a synth we just backgrounded.
+      try {
+        window.speechSynthesis.resume();
+      } catch (error) {
+        /* not all engines implement it */
+      }
+      window.speechSynthesis.cancel();
+    }
+    // Anything mid-sequence stops queueing the rest of itself. See speakInBrowser.
+    speechGeneration += 1;
     if (finishSpeaking) finishSpeaking(false);
   };
 
-  const speakInBrowser = (text) =>
-    new Promise((resolve) => {
-      const voice = pickVoice();
-      if (!voice) {
-        // Nothing installed that speaks this language. Saying it with the wrong
-        // voice is worse than not saying it, so this reports failure and lets the
-        // caller decide.
-        resolve(false);
-        return;
-      }
+  //: Bumped by every stopSpeaking(). A chunked utterance checks it between chunks, so
+  //: an interruption cannot be outlived by the sentences that had not started yet.
+  let speechGeneration = 0;
 
-      window.speechSynthesis.cancel();
+  //: Longest utterance handed to the engine in one piece.
+  //:
+  //: This is the number that decides how bad the worst case is. speechSynthesis is a
+  //: browser-process queue and Chrome routinely loses the race between a page closing
+  //: and cancel() reaching the platform voice — on Windows the utterance is already
+  //: with SAPI, and SAPI finishes what it was given. Hand it a whole paragraph and a
+  //: guest who shut their laptop hears twenty seconds of hotel receptionist; hand it
+  //: one sentence at a time and the worst case is the tail of one sentence.
+  const SPEECH_CHUNK_MAX = 140;
+
+  /** Split an answer into utterance-sized pieces, at sentence ends where possible. */
+  const speechChunks = (text) => {
+    // Bangla's danda alongside the Latin terminators — an answer in Bangla has no
+    // full stops in it, and splitting on "." alone would hand the whole reply over as
+    // one utterance, which is the case this exists for.
+    const sentences = String(text)
+      .split(/(?<=[।?!.\n])\s+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    const chunks = [];
+    for (const sentence of sentences) {
+      if (sentence.length <= SPEECH_CHUNK_MAX) {
+        chunks.push(sentence);
+        continue;
+      }
+      // One sentence longer than the cap — a list of room rates, usually. Break it on
+      // the last comma or space before the cap so it still sounds like a phrase.
+      let rest = sentence;
+      while (rest.length > SPEECH_CHUNK_MAX) {
+        const window_ = rest.slice(0, SPEECH_CHUNK_MAX);
+        const cut = Math.max(window_.lastIndexOf(', '), window_.lastIndexOf('— '), window_.lastIndexOf(' '));
+        const at = cut > SPEECH_CHUNK_MAX / 2 ? cut : SPEECH_CHUNK_MAX;
+        chunks.push(rest.slice(0, at).trim());
+        rest = rest.slice(at).trim();
+      }
+      if (rest) chunks.push(rest);
+    }
+    return chunks.length ? chunks : [String(text)];
+  };
+
+  /** Read one chunk. Resolves true when it finished, false when it never started. */
+  const speakChunk = (text, voice) =>
+    new Promise((resolve) => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = speechLang;
       utterance.voice = voice;
@@ -645,6 +709,40 @@
         watchdog = window.setTimeout(() => done(true), 5000 + words * 700);
       }, 400);
     });
+
+  /** Read an answer out, one sentence-sized utterance at a time.
+   *
+   * The chunking is not a nicety. A single utterance is atomic to the platform voice:
+   * once Chrome has handed a paragraph to SAPI, cancel() is a request that arrives too
+   * late, which is why closing the browser left the assistant talking to an empty room.
+   * Per sentence, the queue holds one short thing at a time and the worst survivable
+   * case is the tail of one sentence.
+   *
+   * Returns false if nothing could be spoken at all, so the caller can explain itself.
+   */
+  const speakInBrowser = async (text) => {
+    const voice = pickVoice();
+    if (!voice) {
+      // Nothing installed that speaks this language. Saying it with the wrong voice is
+      // worse than not saying it, so this reports failure and lets the caller decide.
+      return false;
+    }
+
+    window.speechSynthesis.cancel();
+    const mine = speechGeneration;
+    let spoke = false;
+
+    for (const chunk of speechChunks(text)) {
+      // Anything that called stopSpeaking() while the previous chunk was playing —
+      // the guest interrupting, the tab hiding, the page closing — owns the decision
+      // now. Without this the remaining sentences would be queued after the cancel.
+      if (mine !== speechGeneration) return spoke;
+      const ok = await speakChunk(chunk, voice);
+      spoke = spoke || ok;
+      if (!ok) break;
+    }
+    return spoke;
+  };
 
   const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -742,7 +840,13 @@
         });
         if (!(blob instanceof Blob)) return true;
         stopSpeaking();
-        player = new Audio(URL.createObjectURL(blob));
+        // Held locally as well as on `player`, because stopSpeaking() now nulls the
+        // shared one — and everything below has to keep talking about the element it
+        // created, not about whichever element happens to be current three awaits
+        // later. Without it, a guest interrupting between play() and 'ended' turns
+        // into a TypeError on the next line.
+        const audio = new Audio(URL.createObjectURL(blob));
+        player = audio;
         setState('speaking');
 
         // play() resolves when playback STARTS, not when it finishes. Returning
@@ -761,25 +865,25 @@
           };
           finishSpeaking = settle;
 
-          player.onended = () => settle(true);
-          player.onerror = () => settle(false);
+          audio.onended = () => settle(true);
+          audio.onerror = () => settle(false);
 
           // Belt and braces: a stalled element that never fires 'ended' must not
           // leave a caller waiting for it. Sized from the real duration once the
           // browser knows it.
           const cap = () => {
             window.clearTimeout(playbackWatchdog);
-            const ms = Number.isFinite(player.duration) ? player.duration * 1000 + 2000 : 30000;
+            const ms = Number.isFinite(audio.duration) ? audio.duration * 1000 + 2000 : 30000;
             playbackWatchdog = window.setTimeout(() => settle(true), ms);
           };
-          player.onloadedmetadata = cap;
+          audio.onloadedmetadata = cap;
           cap();
         });
 
         // Before play, not after: switching the sink mid-playback drops the
         // opening syllable on some devices.
-        await routeOutput(player);
-        await player.play();
+        await routeOutput(audio);
+        await audio.play();
         return finished;
       } catch (error) {
         // Fall through to the browser rather than going silent — a dead speech
@@ -1920,6 +2024,16 @@
       }
     }
     stopSpeaking();
+
+    // Again, twice, synchronously. A single cancel() issued while the page is being
+    // torn down is routinely dropped: it is an IPC to the speech service, and the
+    // renderer can be gone before it lands. The extra calls cost nothing on an empty
+    // queue, and they are the difference between the guest hearing the end of a
+    // sentence and hearing the end of a paragraph.
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.cancel();
+    }
   };
 
   window.addEventListener('beforeunload', teardown);

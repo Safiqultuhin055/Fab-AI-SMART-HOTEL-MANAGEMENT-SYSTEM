@@ -297,7 +297,10 @@ class TestDeviceBar:
     def test_the_chosen_speaker_is_applied_before_playback(self):
         """Switching the sink mid-playback drops the opening syllable."""
         source = KIOSK_JS.read_text(encoding="utf-8")
-        assert source.index("await routeOutput(player);") < source.index("await player.play();")
+        # `audio`, not `player`: the element is held in a local as well as on the
+        # shared reference, because stopSpeaking() now nulls the shared one and these
+        # three lines must keep talking about the element they created.
+        assert source.index("await routeOutput(audio);") < source.index("await audio.play();")
 
     def test_an_unplugged_device_does_not_stay_selected(self):
         source = DEVICES_JS.read_text(encoding="utf-8")
@@ -471,8 +474,10 @@ class TestHandsFree:
         forever.
         """
         source = KIOSK_JS.read_text(encoding="utf-8")
-        block = source[source.index("const speakInBrowser") :]
-        block = block[: block.index("const wait = ")]
+        # The per-utterance logic lives in speakChunk now: an answer is spoken one
+        # sentence at a time, and each one needs its own settle guarantee.
+        block = source[source.index("const speakChunk = ") :]
+        block = block[: block.index("const speakInBrowser = ")]
 
         assert "window.setInterval" in block
         assert "quiet >= 2" in block
@@ -611,6 +616,46 @@ class TestHandsFree:
                      "stopRecording()", "recognition.abort()", "stopSpeaking()"):
             assert step in code, step
 
+    def test_an_answer_is_spoken_one_sentence_at_a_time(self):
+        """The number that decides how bad "it kept talking after I closed it" is.
+
+        An utterance is atomic to the platform voice: once Chrome has handed a
+        paragraph to SAPI, a cancel() racing the page's teardown arrives too late and
+        SAPI finishes what it was given. Per sentence, the queue holds one short thing
+        at a time, so the worst survivable case is the tail of one sentence rather than
+        a whole answer.
+        """
+        source = KIOSK_JS.read_text(encoding="utf-8")
+
+        assert "const speechChunks = " in source
+        assert "SPEECH_CHUNK_MAX" in source
+        block = source[source.index("const speechChunks = ") :]
+        block = block[: block.index("\n  };")]
+        # Bangla's danda, not just the Latin terminators: an answer in Bangla contains
+        # no full stops, so splitting on "." alone would hand the whole reply over as
+        # one utterance — which is the case this exists for.
+        assert "।" in block
+
+        # And the sequence stops issuing chunks the moment anything cancels it.
+        speak = source[source.index("const speakInBrowser = ") :]
+        speak = speak[: speak.index("\n  };")]
+        assert "speechGeneration" in speak
+
+    def test_a_detached_audio_element_is_made_to_let_go(self):
+        """`new Audio(blob:…)` is never in the document, so nothing tears it down with
+        the page: the media stack keeps it alive until playback ends, and pause() alone
+        leaves it holding the decoded stream."""
+        source = KIOSK_JS.read_text(encoding="utf-8")
+        block = source[source.index("const stopSpeaking = ") :]
+        block = block[: block.index("\n  };")]
+
+        assert "player.pause()" in block
+        assert "removeAttribute('src')" in block
+        assert "player.load()" in block
+        # And the blob URL is released, or every answer leaks one.
+        assert "URL.revokeObjectURL" in block
+        assert "player = null" in block
+
     def test_stopping_the_voice_is_not_gated_on_which_engine_was_chosen(self):
         """`stopSpeaking()` used to cancel synthesis only `if (browserTts)`.
 
@@ -623,8 +668,11 @@ class TestHandsFree:
         block = source[source.index("const stopSpeaking = ") :]
         block = block[: block.index("\n  };")]
 
-        assert "if (window.speechSynthesis) window.speechSynthesis.cancel();" in block
+        assert "window.speechSynthesis.cancel();" in block
         assert "if (browserTts)" not in block
+        # resume() first: a paused synthesiser ignores cancel() in Chrome, and a
+        # backgrounded tab is one of the things that pauses it.
+        assert block.index("resume()") < block.index("cancel()")
 
     def test_a_stand_down_actually_releases_the_microphone(self):
         """It used to flip `autoListen` and repaint the orb, and leave the recognition

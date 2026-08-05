@@ -186,9 +186,9 @@ class TestTheOpeningIsSequential:
         block = source[source.index("if (serverTts) {") :]
         block = block[: block.index("if (browserTts &&")]
 
-        assert "player.onended = () => settle(true);" in block
+        assert "audio.onended = () => settle(true);" in block
         # The call that starts playback must not be the thing the caller awaits.
-        assert "await player.play();\n        return finished;" in block
+        assert "await audio.play();\n        return finished;" in block
         assert "return true;\n        return finished" not in block
 
     def test_the_browser_path_already_waited_for_the_end(self):
@@ -204,7 +204,7 @@ class TestTheOpeningIsSequential:
 
         assert "playbackWatchdog" in block
         # Sized from the real duration once the browser knows it.
-        assert "player.duration * 1000 + 2000" in block
+        assert "audio.duration * 1000 + 2000" in block
 
     def test_interrupting_speech_settles_the_promise(self):
         """Cutting a sentence short — a language switch, a guest walking away, the
