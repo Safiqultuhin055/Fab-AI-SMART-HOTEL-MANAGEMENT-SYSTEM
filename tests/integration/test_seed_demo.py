@@ -72,6 +72,35 @@ class TestSeeding:
         user = User.objects.filter(employee_code__startswith=DEMO_EMPLOYEE_PREFIX).first()
         assert authenticate(username=user.email, password=DEMO_PASSWORD) is not None
 
+    def test_no_seeded_account_gets_django_admin(self, bootstrapped):
+        """`is_staff` is Django admin access, and the field says so itself:
+        "Operational roles do not need this."
+
+        It used to be granted to every manager, which handed six demo accounts a way
+        into /admin/ — where none of the app's permissions apply. The role system's
+        whole guarantee is that opening a module a role lacks returns 403; Django
+        admin does not ask. A manager who needs to edit a room edits it in the app.
+        """
+        run()
+        seeded = User.objects.filter(employee_code__startswith=DEMO_EMPLOYEE_PREFIX)
+        assert seeded.exists()
+        assert not seeded.filter(is_staff=True).exists()
+
+    def test_seeded_accounts_still_reach_the_staff_app(self, bootstrapped):
+        """Which is the point: they are locked out of Django admin, not out of the
+        product. The error /admin/ gives them reads like a wrong password and is not
+        one — the same credentials work at the staff app."""
+        from django.test import Client
+
+        run()
+        user = User.objects.filter(employee_code__startswith=DEMO_EMPLOYEE_PREFIX).first()
+
+        client = Client()
+        assert client.login(username=user.email, password=DEMO_PASSWORD) is True
+        assert client.get("/").status_code == 200
+        # ...and Django admin bounces them to its own login rather than letting them in.
+        assert client.get("/admin/", follow=False).status_code == 302
+
     def test_every_hotel_gets_its_own_ai_config(self, bootstrapped):
         """Otherwise the extra hotels price at zero and the cost view lies."""
         run()

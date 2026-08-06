@@ -267,7 +267,16 @@ class Command(BaseCommand):
                             f"{role_code[:3].upper()}{index:02d}",
                             "phone": f"+8801{rng.randint(300000000, 999999999)}",
                             "preferred_language": rng.choice(["en", "bn", "bn"]),
-                            "is_staff": role_code == RoleCode.MANAGER,
+                            # Never. `is_staff` is Django admin access, and the field
+                            # says so itself: "Operational roles do not need this."
+                            #
+                            # It used to be granted to every manager, which handed six
+                            # demo accounts a way into /admin/ — where none of the
+                            # app's own permissions apply. The whole point of the
+                            # role system is that opening a module a role lacks
+                            # returns 403; Django admin does not ask. A manager who
+                            # needs to edit a room edits it in the app.
+                            "is_staff": False,
                         },
                     )
                     if is_new:

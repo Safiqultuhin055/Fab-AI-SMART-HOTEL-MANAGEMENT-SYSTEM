@@ -121,11 +121,41 @@ class Command(BaseCommand):
         # project has ever listened on, and it is the first thing somebody copies.
         add("  Django admin   http://127.0.0.1:8000/admin/")
         add("  Staff app      http://127.0.0.1:8000/accounts/login/")
+        add("  Online booking http://127.0.0.1:8000/book/?hotel=GLH-001")
         add("  Lobby kiosk    http://127.0.0.1:8000/reception/kiosk/?hotel=GLH-001")
         add("")
         add("  NOTE: the login field is labelled 'Username' on /admin/ but it takes the")
         add("  EMAIL. ASHOS uses email as the username field — there is no separate")
         add("  handle to remember.")
+        add("")
+
+        # --- which door each account uses -------------------------------------
+        #
+        # Worth its own section because getting it wrong produces an error message
+        # that reads like a wrong password and is not one: /admin/ answers "Please
+        # enter the correct email and password for a staff account" when the
+        # credentials are right and `is_staff` is False. Every operational account is
+        # in exactly that position, on purpose.
+        admin_capable = User.objects.filter(is_staff=True).count()
+        add("-" * 80)
+        add("WHICH LOGIN PAGE")
+        add("-" * 80)
+        add("  Staff app  /accounts/login/   EVERY account below. This is the product:")
+        add("                                roles, permissions, the modules a role can")
+        add("                                open. Operational work happens here.")
+        add("")
+        add("  Django     /admin/            The platform superuser only — currently")
+        add(f"  admin                         {admin_capable} account. It is Django's own")
+        add("                                admin, and it does NOT check the role")
+        add("                                permissions the app is built on: a session")
+        add("                                there can edit any table in any hotel.")
+        add("")
+        add("  A staff account typing its password into /admin/ is told the email and")
+        add("  password are for a non-staff account. That is `is_staff=False` talking,")
+        add("  not a bad password — the same credentials work at /accounts/login/.")
+        add("")
+        add("  The User model states the rule: is_staff is \"Access to /admin/.")
+        add("  Operational roles do not need this.\"")
         add("")
         add("SECURITY")
         add("  Plaintext credentials. Git-ignored, and must stay that way.")
